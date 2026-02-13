@@ -4,9 +4,11 @@
 #include <time.h>
 #include <math.h>
 #include "raylib.h"
+#include "raymath.h"
+#include "anim.h"
+
 #define NOB_IMPLEMENTATION
 #include "nob.h"
-#include "raymath.h"
 #include "iris.h"
 
 #define WIDTH 1024
@@ -22,7 +24,6 @@
 #define COLOR_RED        (Color){255, 85, 85, 255}
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
-
 typedef enum {
     VIEW_2D = 0,
     VIEW_3D = 1
@@ -34,6 +35,7 @@ typedef enum {
     VIRGINICA = 2,
     VERSICOLOR = 3
 } IRIS_LABEL;
+
 
 IRIS_LABEL map_label(const char *input) {
     if (strcmp(input, "Setosa") == 0)
@@ -58,11 +60,19 @@ typedef struct {
     int label;
 } KNN_Entry;
 
+
+typedef struct {
+    Vector3 pos;
+    Color color;
+    float radius;
+} Visual;
+
 typedef struct {
     float x;
     float y;
     float z;
     IRIS_LABEL label;
+    Visual vis;
 } Sample;
 
 typedef struct {
@@ -122,6 +132,41 @@ float get_dist(DIST_METRIC metric, Vector3 a, Vector3 b) {
     }
 }
 
+void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEngine *e)
+{
+    for (int i = 0; i < ds->count; i++){
+        int voting[CLASS_COUNT] = {0};
+        KNN_Entry neighbors[t->count];
+        Sample curr = ds->items[i];
+        Vector3 c_pos = (Vector3){curr.x, curr.y, curr.z};
+        for (int j = 0; j < t->count; j++){
+            Sample entry = t->items[j];
+            Vector3 n_pos = (Vector3){entry.x, entry.y, entry.z};
+            float d = get_dist(metric, c_pos, n_pos);
+            neighbors[j] = (KNN_Entry){ .index = j, .d = d, .label = entry.label};
+        }
+        qsort(neighbors, t->count, sizeof(KNN_Entry), compare_entry);
+
+        for (int n = 0; n < k; n++){
+            KNN_Entry entry = neighbors[n];
+            voting[(int)entry.label] += 1;
+        }
+
+       int best_class = 0;
+       int max_votes = voting[0];
+
+       for (int c = 1; c < CLASS_COUNT; c++) {
+           if (voting[c] > max_votes) {
+               max_votes = voting[c];
+               best_class = c;
+           }
+       }
+
+       ds->items[i].label = best_class;
+       tween_color(e, &ds->items[i].vis.color, CLASS_COLORS[best_class], 5.0); 
+    }
+}
+
 void knn(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t)
 {
     for (int i = 0; i < ds->count; i++){
@@ -141,6 +186,7 @@ void knn(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t)
             KNN_Entry entry = neighbors[n];
             voting[(int)entry.label] += 1;
         }
+
        int best_class = 0;
        int max_votes = voting[0];
 
@@ -153,7 +199,6 @@ void knn(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t)
 
        ds->items[i].label = best_class;
     }
-
 }
 
 void generate_points(Dataset *dataset)
@@ -207,22 +252,29 @@ void draw_axes(void) {
     }
 }
 
-void draw_dataset(const Dataset *td){
+void draw_dataset(const Dataset *td, float dt){
     for (int i = 0; i < td->count; i++){
         Sample entry = td->items[i];
-        Vector3 pos = { entry.x, entry.y, entry.z };
+        Visual vis = entry.vis; 
+        Vector3 pos = vis.pos; 
+        float r = vis.radius; 
+        Color color = vis.color; 
         if (view_mode == VIEW_2D)
             pos.y = 0;
 
         DrawSphere(
                 pos,
-                POINT_RADIUS,
-                CLASS_COLORS[(int)entry.label]
+                r,
+                color
                 );
     }
 }
 
-void prepare_training_dataset(Dataset *td){
+Vector3 random_vec3(){
+    return (Vector3){ .x = randf(-10, 10), .y = randf(-10, 10), .z = randf(-10, 10)};
+}
+
+void prepare_training_dataset(Dataset *td, TweenEngine *e){
     da_reserve(td, IRIS.count);
 
     float max_sepal_length = IRIS.data[0].sepal_length;
@@ -252,10 +304,31 @@ void prepare_training_dataset(Dataset *td){
         float s_w = (row.sepal_width  / max_sepal_width ) * 10.0f - 5.0f;
         float p_l = (row.petal_length / max_petal_length) * 10.0f - 5.0f;
         float p_w = (row.petal_width  / max_petal_width ) * 10.0f - 5.0f;
-        td->items[i] = (Sample){ .x = p_w, .y = s_w, .z = p_l,
-            .label = map_label(row.variety)};
+        IRIS_LABEL label = map_label(row.variety);
+        td->items[i] = (Sample){ 
+            .x = p_w, .y = s_w, .z = p_l,
+                .label = label, 
+                .vis ={ 
+                    .pos = random_vec3(),
+                    .radius = POINT_RADIUS, 
+                    .color = COLOR_GRAY           }
+        };
+
+
+        //animation
+        float dur = 1.0;
+        Color color = CLASS_COLORS[map_label(row.variety)] ;
+        tween_vec3(e, &td->items[i].vis.pos, 
+                (Vector3){ 
+                .x = p_w, .y = s_w, .z = p_l
+                }, dur
+                );
+
+        tween_color(e, &td->items[i].vis.color, color, dur);
+ 
     }
 }
+
 
 void draw_classes(){
     DrawText("SETOSA", WIDTH-150, 20, 20, CLASS_COLORS[SETOSA]);
@@ -263,52 +336,77 @@ void draw_classes(){
     DrawText("VERSICOLOR", WIDTH-150, 60, 20, CLASS_COLORS[VERSICOLOR]);
 }
 
-void draw_axis_labels(Camera camera) {
+void draw_axis_labels(const Camera *camera) {
     float len = 16.2f;
 
-    Vector2 x_pos = GetWorldToScreen((Vector3){ len, 0, 0}, camera);
-    Vector2 y_pos = GetWorldToScreen((Vector3){ 0, len, 0}, camera);
-    Vector2 z_pos = GetWorldToScreen((Vector3){ 0, 0, len}, camera);
+    Vector2 x_pos = GetWorldToScreen((Vector3){ len, 0, 0}, *camera);
+    Vector2 y_pos = GetWorldToScreen((Vector3){ 0, len, 0}, *camera);
+    Vector2 z_pos = GetWorldToScreen((Vector3){ 0, 0, len}, *camera);
 
     DrawText("petal_width",  (int)x_pos.x, (int)x_pos.y, 16, COLOR_RED);
     DrawText("sepal_width",  (int)y_pos.x, (int)y_pos.y, 16, COLOR_GREEN);
     DrawText("petal_length", (int)z_pos.x, (int)z_pos.y, 16, COLOR_BLUE);
 }
 
+typedef struct {
+    Camera camera;
+
+    //animation props
+    Vector3 desire_target;
+    Vector3 desire_pos;
+    float desire_fovy;
+} AnimCamera;
+
+
+void cam_look_at(TweenEngine *e, Camera *cam, Vector3 target){
+    tween_vec3(e, &cam->target, target, 1); 
+}
+
+void cam_move(TweenEngine *e, Camera *cam, Vector3 target){
+    tween_vec3(e, &cam->position, target, 1); 
+}
+
+void cam_fovy(TweenEngine *e, Camera *cam, float target){
+    tween_float(e, &cam->fovy, target, 2); 
+}
+
 int main()
 {
     srand(time(NULL));
 
+    TweenEngine te = {0};
+
+    da_reserve(&te, 1024);
     Dataset dataset = {0};
     Dataset training_set = {0};
 
-    prepare_training_dataset(&training_set);
+    prepare_training_dataset(&training_set, &te);
 
     BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
 
-    // Define the camera to look into our 3d world
     Camera camera = { 0 };
-    camera.position = (Vector3){ 0.0f, 20.0f, 0.5f };
-    camera.target = (Vector3){ 0.0f, -1.0f, 0.0f };
+    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
+    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 60.0f;
+    camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-
+    cam_move(&te, &camera, (Vector3){ 0, 20, 0.0 });
 
     InitWindow(WIDTH, HEIGHT, "KNN Playground");
     SetTargetFPS(60);
-
+    
     SetMousePosition(WIDTH/2, HEIGHT/2);
+
     while (!WindowShouldClose())
     {
+        float dt = GetFrameTime(); 
+        tween_update(&te, dt);
         UpdateCamera(&camera, CAMERA_FREE);
         /* Input */
         if (IsKeyPressed(KEY_T))
             toggle_view(&view_mode);
-        if (IsKeyPressed(KEY_K)){
-            printf("press!");
-            knn(7, view_mode, &dataset, &training_set);
-        }
+        if (IsKeyPressed(KEY_K))
+            knn_anim(7, view_mode, &dataset, &training_set, &te);
         if (IsKeyPressed(KEY_R))
             reset_points(&dataset);
         if (IsKeyPressed(KEY_P))
@@ -319,26 +417,33 @@ int main()
             if(hit.hit)
             {
                 Vector3 p = hit.point;
-                Sample sample = { .x = p.x, .y = randf(-5, 5), .z = p.z, .label = 0 };
+                Vector3 sp = {.x = p.x, .y = randf(-5, 5), .z = p.z};
+                Sample sample = { .x = sp.x, .y = sp.y, .z = sp.z, 
+                    .label = 0, 
+                    .vis = { 
+                        .pos = { .x = sp.x, .y = sp.y, .z = sp.z},
+                        .radius = 0,
+                        .color = COLOR_GRAY }
+                    };
+
+            
                 da_append(&dataset, sample);
+                Sample *entry = &da_last(&dataset);
+                tween_float(&te, &entry->vis.radius, POINT_RADIUS, 2.0) ;
             }
         }
 
-        /* Draw */
         BeginDrawing();
-        ClearBackground(BACKGROUND_COLOR);
-
-        BeginMode3D(camera);
-        
-            draw_axes();
-            draw_axis_labels(camera);
-            draw_dataset(&training_set);
-            draw_dataset(&dataset);
-           // DrawGrid(20, 1);        // Draw a grid
-        EndMode3D();
-            DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
-            draw_classes();
-
+            ClearBackground(BACKGROUND_COLOR);
+            BeginMode3D(camera);
+                draw_axes();
+                draw_axis_labels(&camera);
+                draw_dataset(&training_set, dt);
+                draw_dataset(&dataset, dt);
+                DrawGrid(10, 1);        // Draw a grid
+            EndMode3D();
+                DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
+                draw_classes();
         EndDrawing();
     }
     CloseWindow();
