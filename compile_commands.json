@@ -1,0 +1,18 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-O2",
+      "-Wall",
+      "-Wextra",
+      "-Ithird_party/raylib/include",
+      "-c",
+      "-o",
+      "knn.o",
+      "knn.c"
+    ],
+    "directory": "/home/pg/programming/machine_learning",
+    "file": "/home/pg/programming/machine_learning/knn.c",
+    "output": "/home/pg/programming/machine_learning/knn.o"
+  }
+]
