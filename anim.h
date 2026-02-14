@@ -1,6 +1,5 @@
 #include "raylib.h"
 #include "raymath.h"
-#include "nob.h"
 
 typedef enum {
     TWEEN_FLOAT,
@@ -18,6 +17,7 @@ typedef enum {
 
 typedef struct {
     bool active;
+    bool completed;
     TweenType type;
     EaseFunc ease;
     void *target;

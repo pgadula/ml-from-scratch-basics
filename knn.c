@@ -5,10 +5,11 @@
 #include <math.h>
 #include "raylib.h"
 #include "raymath.h"
-#include "anim.h"
 
 #define NOB_IMPLEMENTATION
 #include "nob.h"
+
+#include "anim.h"
 #include "iris.h"
 
 #define WIDTH 1024
@@ -219,17 +220,17 @@ void draw_axes(void) {
     DrawLine3D(
         (Vector3){-len, 0, 0}, 
         (Vector3){ len, 0, 0}, 
-        COLOR_RED
+        RED
     );
     DrawLine3D(
         (Vector3){0, -len, 0}, 
         (Vector3){0,  len, 0}, 
-        COLOR_GREEN
+        GREEN
     );
     DrawLine3D(
         (Vector3){0, 0, -len}, 
         (Vector3){0, 0,  len}, 
-        COLOR_BLUE
+        BLUE
     );
 
     for (int i = -5; i <= 5; i++) {
@@ -337,15 +338,15 @@ void draw_classes(){
 }
 
 void draw_axis_labels(const Camera *camera) {
-    float len = 16.2f;
+    float len = 6.2f;
 
     Vector2 x_pos = GetWorldToScreen((Vector3){ len, 0, 0}, *camera);
     Vector2 y_pos = GetWorldToScreen((Vector3){ 0, len, 0}, *camera);
     Vector2 z_pos = GetWorldToScreen((Vector3){ 0, 0, len}, *camera);
 
-    DrawText("petal_width",  (int)x_pos.x, (int)x_pos.y, 16, COLOR_RED);
-    DrawText("sepal_width",  (int)y_pos.x, (int)y_pos.y, 16, COLOR_GREEN);
-    DrawText("petal_length", (int)z_pos.x, (int)z_pos.y, 16, COLOR_BLUE);
+    DrawText("X petal width",  (int)x_pos.x, (int)x_pos.y, 24, COLOR_RED);
+    DrawText("Y sepal width",  (int)y_pos.x, (int)y_pos.y, 24, COLOR_GREEN);
+    DrawText("Z petal length", (int)z_pos.x, (int)z_pos.y, 24, COLOR_BLUE);
 }
 
 typedef struct {
@@ -362,8 +363,8 @@ void cam_look_at(TweenEngine *e, Camera *cam, Vector3 target){
     tween_vec3(e, &cam->target, target, 1); 
 }
 
-void cam_move(TweenEngine *e, Camera *cam, Vector3 target){
-    tween_vec3(e, &cam->position, target, 1); 
+Tween *cam_move(TweenEngine *e, Camera *cam, Vector3 target){
+    return tween_vec3(e, &cam->position, target, 1); 
 }
 
 void cam_fovy(TweenEngine *e, Camera *cam, float target){
@@ -390,7 +391,7 @@ int main()
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-    cam_move(&te, &camera, (Vector3){ 0, 20, 0.0 });
+    Tween *cam_t = cam_move(&te, &camera, (Vector3){ 0, 20, 0.0 });
 
     InitWindow(WIDTH, HEIGHT, "KNN Playground");
     SetTargetFPS(60);
@@ -401,7 +402,8 @@ int main()
     {
         float dt = GetFrameTime(); 
         tween_update(&te, dt);
-        UpdateCamera(&camera, CAMERA_FREE);
+        if(!cam_t->active)
+            UpdateCamera(&camera, CAMERA_FREE);
         /* Input */
         if (IsKeyPressed(KEY_T))
             toggle_view(&view_mode);
@@ -437,11 +439,11 @@ int main()
             ClearBackground(BACKGROUND_COLOR);
             BeginMode3D(camera);
                 draw_axes();
-                draw_axis_labels(&camera);
                 draw_dataset(&training_set, dt);
                 draw_dataset(&dataset, dt);
-                DrawGrid(10, 1);        // Draw a grid
+                //DrawGrid(10, 1);        // Draw a grid
             EndMode3D();
+                draw_axis_labels(&camera);
                 DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
                 draw_classes();
         EndDrawing();
