@@ -1,8 +1,10 @@
+#include <stdlib.h>
 #include "raylib.h"
 #include "raymath.h"
 
 typedef enum {
     TWEEN_FLOAT,
+    TWEEN_DRAW,
     TWEEN_VEC3,
     TWEEN_COLOR,
 } TweenType;
@@ -18,8 +20,10 @@ typedef enum {
 typedef struct {
     bool active;
     bool completed;
+    bool owns_data;
     TweenType type;
     EaseFunc ease;
+    void (*draw)(float t, void *userdata);
     void *target;
     
     union {
@@ -37,7 +41,7 @@ typedef struct {
 typedef struct {
     int count;
     int capacity;
-    Tween *items
+    Tween *items;
 }   TweenEngine;
 
 float ease(EaseFunc f, float t) {
@@ -85,8 +89,20 @@ Color lerp_color(Color a, Color b, float t) {
 Tween* tween_add(TweenEngine *e) {
     if (e->count >= e->capacity) return NULL;
     Tween *tw = &e->items[e->count++]; 
+    *tw = (Tween){0};
     tw->active = true;
     tw->ease = EASE_OUT_QUAD;
+    return tw;
+}
+
+
+Tween *tween_draw(TweenEngine *e, void* draw, float duration, void *userdata) {
+    Tween *tw = tween_add(e);
+    if (!tw) return tw;
+    tw->type = TWEEN_DRAW;
+    tw->draw = draw;
+    tw->userdata = userdata;
+    tw->duration = duration;
     return tw;
 }
 
@@ -150,6 +166,9 @@ void tween_update(TweenEngine *e, float dt) {
         float et = ease(tw->ease, t);
 
         switch (tw->type) {
+            case TWEEN_DRAW:
+                tw->draw(et, tw->userdata); 
+                break;
             case TWEEN_FLOAT:
                 *(float*)tw->target = lerpf(tw->f.from, tw->f.to, et);
                 break;
@@ -163,6 +182,9 @@ void tween_update(TweenEngine *e, float dt) {
 
         if (t >= 1.0f) {
             if (tw->on_complete) tw->on_complete(tw->userdata);
+            if(tw->owns_data && tw->userdata) free(tw->userdata);
+            tw->userdata = NULL; 
+            tw->active = false;
             e->items[i] = e->items[--e->count];
         }
     }

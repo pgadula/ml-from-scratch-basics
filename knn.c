@@ -19,7 +19,7 @@
 #define CLASS_COUNT 4
 #define POINT_RADIUS 0.1
 
-#define BACKGROUND_COLOR (Color){20, 22, 28, 255}
+#define BACKGROUND_COLOR (Color){0, 2, 8, 255}
 #define COLOR_GRAY       (Color){80, 80, 80 ,255}
 #define COLOR_BLUE       (Color){88, 196, 221, 255}
 #define COLOR_RED        (Color){255, 85, 85, 255}
@@ -59,8 +59,8 @@ typedef struct {
     int index;
     float d;
     int label;
+    Vector3 pos;
 } KNN_Entry;
-
 
 typedef struct {
     Vector3 pos;
@@ -133,26 +133,52 @@ float get_dist(DIST_METRIC metric, Vector3 a, Vector3 b) {
     }
 }
 
+typedef struct{
+    Vector3 from;
+    Vector3 to;
+    Color color;
+} ArrowData;
+
+void draw_arrow(float t, ArrowData *arrow){
+    if(view_mode == VIEW_2D){
+        arrow->from.y = 0;
+        arrow->to.y = 0;
+    }
+
+
+    DrawLine3D(
+        arrow->from,
+        lerp_vec3(arrow->from, arrow->to, t),
+        lerp_color(YELLOW, arrow->color, t)
+    );
+}
+
 void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEngine *e)
 {
+    KNN_Entry neighbors[t->count];
     for (int i = 0; i < ds->count; i++){
         int voting[CLASS_COUNT] = {0};
-        KNN_Entry neighbors[t->count];
         Sample curr = ds->items[i];
-        Vector3 c_pos = (Vector3){curr.x, curr.y, curr.z};
+        Vector3 c_pos = curr.vis.pos;
         for (int j = 0; j < t->count; j++){
             Sample entry = t->items[j];
-            Vector3 n_pos = (Vector3){entry.x, entry.y, entry.z};
+            Vector3 n_pos = entry.vis.pos; 
             float d = get_dist(metric, c_pos, n_pos);
-            neighbors[j] = (KNN_Entry){ .index = j, .d = d, .label = entry.label};
+            KNN_Entry knn_entry = { .index = j, .d = d, .label = entry.label, .pos = n_pos};
+            neighbors[j] = knn_entry;
         }
         qsort(neighbors, t->count, sizeof(KNN_Entry), compare_entry);
 
         for (int n = 0; n < k; n++){
             KNN_Entry entry = neighbors[n];
             voting[(int)entry.label] += 1;
-        }
 
+            ArrowData *ad = malloc(sizeof(ArrowData));
+            *ad = (ArrowData){ .from = c_pos, .to = entry.pos, .color = CLASS_COLORS[entry.label]};
+            Tween *tw = tween_draw(e, draw_arrow, 3.0, ad);
+            tw->owns_data = true;
+            
+        }
        int best_class = 0;
        int max_votes = voting[0];
 
@@ -163,8 +189,8 @@ void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEn
            }
        }
 
-       ds->items[i].label = best_class;
-       tween_color(e, &ds->items[i].vis.color, CLASS_COLORS[best_class], 5.0); 
+      ds->items[i].label = best_class;
+      tween_color(e, &ds->items[i].vis.color, CLASS_COLORS[best_class], 5.0); 
     }
 }
 
@@ -213,7 +239,7 @@ void generate_points(Dataset *dataset)
     }
 }
 
-void draw_axes(void) {
+void draw_axes(VIEW_MODE view_mode) {
     float len = 6.0f;
     float label_offset = 0.3f;
     
@@ -222,11 +248,12 @@ void draw_axes(void) {
         (Vector3){ len, 0, 0}, 
         RED
     );
-    DrawLine3D(
-        (Vector3){0, -len, 0}, 
-        (Vector3){0,  len, 0}, 
-        GREEN
-    );
+    if(view_mode == VIEW_3D)
+        DrawLine3D(
+                (Vector3){0, -len, 0},
+                (Vector3){0,  len, 0}, 
+                GREEN
+                );
     DrawLine3D(
         (Vector3){0, 0, -len}, 
         (Vector3){0, 0,  len}, 
@@ -240,11 +267,13 @@ void draw_axes(void) {
             (Vector3){i,  t, 0}, 
             COLOR_RED
         );
-        DrawLine3D(
-            (Vector3){-t, i, 0}, 
-            (Vector3){ t, i, 0}, 
-            COLOR_GREEN
-        );
+
+        if(view_mode == VIEW_3D)
+            DrawLine3D(
+                    (Vector3){-t, i, 0}, 
+                    (Vector3){ t, i, 0}, 
+                    COLOR_GREEN
+                    );
         DrawLine3D(
             (Vector3){0, -t, i}, 
             (Vector3){0,  t, i}, 
@@ -331,13 +360,14 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
 }
 
 
+
 void draw_classes(){
     DrawText("SETOSA", WIDTH-150, 20, 20, CLASS_COLORS[SETOSA]);
     DrawText("VIRGINICA", WIDTH-150, 40, 20, CLASS_COLORS[VIRGINICA]);
     DrawText("VERSICOLOR", WIDTH-150, 60, 20, CLASS_COLORS[VERSICOLOR]);
 }
 
-void draw_axis_labels(const Camera *camera) {
+void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
     float len = 6.2f;
 
     Vector2 x_pos = GetWorldToScreen((Vector3){ len, 0, 0}, *camera);
@@ -345,7 +375,8 @@ void draw_axis_labels(const Camera *camera) {
     Vector2 z_pos = GetWorldToScreen((Vector3){ 0, 0, len}, *camera);
 
     DrawText("X petal width",  (int)x_pos.x, (int)x_pos.y, 24, COLOR_RED);
-    DrawText("Y sepal width",  (int)y_pos.x, (int)y_pos.y, 24, COLOR_GREEN);
+    if (view_mode == VIEW_3D)
+        DrawText("Y sepal width",  (int)y_pos.x, (int)y_pos.y, 24, COLOR_GREEN);
     DrawText("Z petal length", (int)z_pos.x, (int)z_pos.y, 24, COLOR_BLUE);
 }
 
@@ -371,6 +402,27 @@ void cam_fovy(TweenEngine *e, Camera *cam, float target){
     tween_float(e, &cam->fovy, target, 2); 
 }
 
+void toggle_view_anim(TweenEngine *e, Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
+    *view_mode ^= VIEW_3D;
+
+    cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+    if (*view_mode == VIEW_3D) {
+        for (int i = 0; i < ds->count; i++) {
+            tween_vec3(e, &ds->items[i].vis.pos, 
+                    (Vector3){ ds->items[i].x, ds->items[i].y, ds->items[i].z }, 1.0f);
+        }
+        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+        cam_move(e, camera, (Vector3){ 10, 10, 10 });
+    } else {
+        for (int i = 0; i < ds->count; i++) {
+            tween_vec3(e, &ds->items[i].vis.pos,
+                    (Vector3){ ds->items[i].x, 0, ds->items[i].z }, 1.0f);
+        }
+        cam_move(e, camera, (Vector3){ 0.0, 20, 0.01 });
+        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+    }
+}
+
 int main()
 {
     srand(time(NULL));
@@ -378,6 +430,7 @@ int main()
     TweenEngine te = {0};
 
     da_reserve(&te, 1024);
+
     Dataset dataset = {0};
     Dataset training_set = {0};
 
@@ -391,8 +444,8 @@ int main()
     camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
-    Tween *cam_t = cam_move(&te, &camera, (Vector3){ 0, 20, 0.0 });
 
+    toggle_view_anim(&te, &training_set, &camera, &view_mode);
     InitWindow(WIDTH, HEIGHT, "KNN Playground");
     SetTargetFPS(60);
     
@@ -401,14 +454,14 @@ int main()
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime(); 
-        tween_update(&te, dt);
-        if(!cam_t->active)
-            UpdateCamera(&camera, CAMERA_FREE);
+        if (view_mode == VIEW_3D)
+           UpdateCamera(&camera, CAMERA_FREE);
+            
         /* Input */
         if (IsKeyPressed(KEY_T))
-            toggle_view(&view_mode);
+            toggle_view_anim(&te, &training_set, &camera, &view_mode);
         if (IsKeyPressed(KEY_K))
-            knn_anim(7, view_mode, &dataset, &training_set, &te);
+            knn_anim(5, view_mode, &dataset, &training_set, &te);
         if (IsKeyPressed(KEY_R))
             reset_points(&dataset);
         if (IsKeyPressed(KEY_P))
@@ -438,12 +491,15 @@ int main()
         BeginDrawing();
             ClearBackground(BACKGROUND_COLOR);
             BeginMode3D(camera);
-                draw_axes();
+
+                tween_update(&te, dt);
+                draw_axes(view_mode);
                 draw_dataset(&training_set, dt);
                 draw_dataset(&dataset, dt);
-                //DrawGrid(10, 1);        // Draw a grid
+                if(view_mode == VIEW_2D)
+                    DrawGrid(10, 1);        // Draw a grid
             EndMode3D();
-                draw_axis_labels(&camera);
+                draw_axis_labels(&camera, view_mode);
                 DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
                 draw_classes();
         EndDrawing();
