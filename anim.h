@@ -33,6 +33,7 @@ typedef struct {
     };
 
     float duration;
+    float hold;
     float elapsed;
     void (*on_complete)(void *userdata);
     void *userdata;
@@ -91,6 +92,7 @@ Tween* tween_add(TweenEngine *e) {
     Tween *tw = &e->items[e->count++]; 
     *tw = (Tween){0};
     tw->active = true;
+    tw->hold = 0;
     tw->ease = EASE_OUT_QUAD;
     return tw;
 }
@@ -160,6 +162,7 @@ void tween_update(TweenEngine *e, float dt) {
         if (!tw->active) continue;
 
         tw->elapsed += dt;
+        if(tw->elapsed < 0) continue;
         float t = tw->elapsed / tw->duration;
         if (t >= 1.0f) t = 1.0f;
         
@@ -180,7 +183,7 @@ void tween_update(TweenEngine *e, float dt) {
                 break;
         }
 
-        if (t >= 1.0f) {
+        if (tw->elapsed >= tw->duration + tw->hold) {
             if (tw->on_complete) tw->on_complete(tw->userdata);
             if(tw->owns_data && tw->userdata) free(tw->userdata);
             tw->userdata = NULL; 

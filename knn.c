@@ -12,7 +12,7 @@
 #include "anim.h"
 #include "iris.h"
 
-#define WIDTH 1024
+#define WIDTH 1920
 #define HEIGHT 1024
 
 #define POINT_COUNT 512
@@ -82,11 +82,18 @@ typedef struct {
     Sample *items;
 } Dataset;
 
-Color CLASS_COLORS[CLASS_COUNT] = {
+Color FEATURES_COLORS[CLASS_COUNT] = {
     COLOR_GRAY,
     COLOR_BLUE,
     COLOR_RED,
     COLOR_GREEN
+};
+
+Color CLASSIFIED_COLORS[CLASS_COUNT] = {
+    GRAY,
+    BLUE,
+    RED,
+    GREEN
 };
 
 int compare_entry(const void *a, const void *b) {
@@ -174,10 +181,11 @@ void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEn
             voting[(int)entry.label] += 1;
 
             ArrowData *ad = malloc(sizeof(ArrowData));
-            *ad = (ArrowData){ .from = c_pos, .to = entry.pos, .color = CLASS_COLORS[entry.label]};
+            *ad = (ArrowData){ .from = c_pos, .to = entry.pos, .color = FEATURES_COLORS[entry.label]};
             Tween *tw = tween_draw(e, draw_arrow, 3.0, ad);
+            tw->elapsed = -(0.5 * n);
             tw->owns_data = true;
-            
+            tw->hold = 2.0;
         }
        int best_class = 0;
        int max_votes = voting[0];
@@ -190,7 +198,7 @@ void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEn
        }
 
       ds->items[i].label = best_class;
-      tween_color(e, &ds->items[i].vis.color, CLASS_COLORS[best_class], 5.0); 
+      tween_color(e, &ds->items[i].vis.color, CLASSIFIED_COLORS[best_class], 2.0); 
     }
 }
 
@@ -234,7 +242,7 @@ void generate_points(Dataset *dataset)
     Sample* points = dataset->items;
     for (int i = 0; i < dataset->capacity; i++)
     {
-        Sample pt = (Sample){.x = randf(0, WIDTH), .y = randf(0, WIDTH), .z = randf(0, WIDTH), .label = UNKNOWN};
+        Sample pt = (Sample){.x = randf(0, WIDTH), .y = randf(0, HEIGHT), .z = randf(0, WIDTH), .label = UNKNOWN};
         da_append(dataset, pt);
     }
 }
@@ -282,7 +290,7 @@ void draw_axes(VIEW_MODE view_mode) {
     }
 }
 
-void draw_dataset(const Dataset *td, float dt){
+void draw_dataset(const Dataset *td, float dt, bool is_training_set){
     for (int i = 0; i < td->count; i++){
         Sample entry = td->items[i];
         Visual vis = entry.vis; 
@@ -292,11 +300,17 @@ void draw_dataset(const Dataset *td, float dt){
         if (view_mode == VIEW_2D)
             pos.y = 0;
 
-        DrawSphere(
-                pos,
-                r,
-                color
-                );
+        if (is_training_set) {
+            DrawSphere(pos, r, color);
+        } else {
+            float size = r * 1.2f;
+            DrawCube(pos, size, size, size, color);
+            if (entry.label == UNKNOWN) {
+                float pulse = 1.0f + 0.2f * sinf(GetTime() * 4.0f);
+                float ps = size * 1.5f * pulse;
+                DrawCube(pos, ps, ps, ps, (Color){255, 255, 255, 60});
+            }
+        }
     }
 }
 
@@ -330,7 +344,7 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
     td->count = IRIS.count;
     for(int i = 0; i < IRIS.count; i++){
         Row row = IRIS.data[i];
-        float s_l = (row.sepal_length / max_sepal_length) * 10.0f - 5.0f;
+        float s_l = (row.sepal_length / max_sepal_length) / 12;
         float s_w = (row.sepal_width  / max_sepal_width ) * 10.0f - 5.0f;
         float p_l = (row.petal_length / max_petal_length) * 10.0f - 5.0f;
         float p_w = (row.petal_width  / max_petal_width ) * 10.0f - 5.0f;
@@ -340,31 +354,30 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
                 .label = label, 
                 .vis ={ 
                     .pos = random_vec3(),
-                    .radius = POINT_RADIUS, 
-                    .color = COLOR_GRAY           }
+                    .radius = 0, 
+                    .color = WHITE           }
         };
-
 
         //animation
         float dur = 1.0;
-        Color color = CLASS_COLORS[map_label(row.variety)] ;
+        Color color = FEATURES_COLORS[map_label(row.variety)] ;
         tween_vec3(e, &td->items[i].vis.pos, 
                 (Vector3){ 
-                .x = p_w, .y = s_w, .z = p_l
+                .x = p_l, .y = s_w, .z = p_w
                 }, dur
                 );
 
+        tween_float(e, &td->items[i].vis.radius, s_l, dur);
         tween_color(e, &td->items[i].vis.color, color, dur);
- 
     }
 }
 
 
 
 void draw_classes(){
-    DrawText("SETOSA", WIDTH-150, 20, 20, CLASS_COLORS[SETOSA]);
-    DrawText("VIRGINICA", WIDTH-150, 40, 20, CLASS_COLORS[VIRGINICA]);
-    DrawText("VERSICOLOR", WIDTH-150, 60, 20, CLASS_COLORS[VERSICOLOR]);
+    DrawText("SETOSA", WIDTH-150, 20, 20, FEATURES_COLORS[SETOSA]);
+    DrawText("VIRGINICA", WIDTH-150, 40, 20, FEATURES_COLORS[VIRGINICA]);
+    DrawText("VERSICOLOR", WIDTH-150, 60, 20, FEATURES_COLORS[VERSICOLOR]);
 }
 
 void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
@@ -456,7 +469,13 @@ int main()
         float dt = GetFrameTime(); 
         if (view_mode == VIEW_3D)
            UpdateCamera(&camera, CAMERA_FREE);
-            
+        else{
+            float scroll = GetMouseWheelMove();
+            if (scroll != 0){
+                tween_float(&te, &camera.fovy, 
+                Clamp(camera.fovy - scroll * 3.0f, 10.0f, 90.0f), 0.3f);
+            }
+        }
         /* Input */
         if (IsKeyPressed(KEY_T))
             toggle_view_anim(&te, &training_set, &camera, &view_mode);
@@ -478,7 +497,7 @@ int main()
                     .vis = { 
                         .pos = { .x = sp.x, .y = sp.y, .z = sp.z},
                         .radius = 0,
-                        .color = COLOR_GRAY }
+                        .color = WHITE }
                     };
 
             
@@ -493,11 +512,11 @@ int main()
             BeginMode3D(camera);
 
                 tween_update(&te, dt);
-                draw_axes(view_mode);
-                draw_dataset(&training_set, dt);
-                draw_dataset(&dataset, dt);
                 if(view_mode == VIEW_2D)
                     DrawGrid(10, 1);        // Draw a grid
+                draw_axes(view_mode);
+                draw_dataset(&training_set, dt, true);
+                draw_dataset(&dataset, dt, false);
             EndMode3D();
                 draw_axis_labels(&camera, view_mode);
                 DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
