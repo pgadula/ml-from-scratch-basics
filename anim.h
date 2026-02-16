@@ -7,6 +7,7 @@ typedef enum {
     TWEEN_DRAW,
     TWEEN_VEC3,
     TWEEN_COLOR,
+    TWEEN_COLOR_ALPHA,
 } TweenType;
 
 typedef enum {
@@ -78,6 +79,16 @@ Vector3 lerp_vec3(Vector3 a, Vector3 b, float t) {
     };
 }
 
+
+Color lerp_color_alpha(Color c, unsigned char a, unsigned b, float t) {
+    return (Color){
+        c.r,
+        c.g,
+        c.b,
+        (unsigned char)lerpf(a, b, t),
+    };
+}
+
 Color lerp_color(Color a, Color b, float t) {
     return (Color){
         (unsigned char)lerpf(a.r, b.r, t),
@@ -141,6 +152,17 @@ Tween *tween_color(TweenEngine *e, Color *target, Color to, float duration) {
     return tw;
 }
 
+Tween *tween_alpha(TweenEngine *e, Color *target, float from, float to, float duration) {
+    Tween *tw = tween_add(e);
+    if (!tw) return tw;
+    tw->type = TWEEN_COLOR_ALPHA;
+    tw->target = target;
+    tw->f.from = from; 
+    tw->f.to = to;
+    tw->duration = duration;
+    return tw;
+}
+
 void tween_float_ex(TweenEngine *e, float *target, float to, 
                      float duration, EaseFunc ef, 
                      void (*on_complete)(void*), void *userdata) {
@@ -180,6 +202,9 @@ void tween_update(TweenEngine *e, float dt) {
                 break;
             case TWEEN_COLOR:
                 *(Color*)tw->target = lerp_color(tw->col.from, tw->col.to, et);
+                break;
+            case TWEEN_COLOR_ALPHA:
+                *(Color*)tw->target = lerp_color_alpha(*(Color*)tw->target, tw->f.from,tw->f.to, et);
                 break;
         }
 

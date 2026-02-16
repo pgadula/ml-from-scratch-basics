@@ -247,46 +247,24 @@ void generate_points(Dataset *dataset)
     }
 }
 
+float axes_len = 0.0f; 
+
 void draw_axes(VIEW_MODE view_mode) {
-    float len = 6.0f;
-    float label_offset = 0.3f;
+    float len = axes_len;
+    if (len < 0.01f) return;
     
-    DrawLine3D(
-        (Vector3){-len, 0, 0}, 
-        (Vector3){ len, 0, 0}, 
-        RED
-    );
-    if(view_mode == VIEW_3D)
-        DrawLine3D(
-                (Vector3){0, -len, 0},
-                (Vector3){0,  len, 0}, 
-                GREEN
-                );
-    DrawLine3D(
-        (Vector3){0, 0, -len}, 
-        (Vector3){0, 0,  len}, 
-        BLUE
-    );
+    DrawLine3D((Vector3){-len, 0, 0}, (Vector3){ len, 0, 0}, RED);
+    if (view_mode == VIEW_3D)
+        DrawLine3D((Vector3){0, -len, 0}, (Vector3){0, len, 0}, GREEN);
+    DrawLine3D((Vector3){0, 0, -len}, (Vector3){0, 0, len}, BLUE);
 
-    for (int i = -5; i <= 5; i++) {
+    int ticks = (int)len;
+    for (int i = -ticks; i <= ticks; i++) {
         float t = 0.1f;
-        DrawLine3D(
-            (Vector3){i, -t, 0}, 
-            (Vector3){i,  t, 0}, 
-            COLOR_RED
-        );
-
-        if(view_mode == VIEW_3D)
-            DrawLine3D(
-                    (Vector3){-t, i, 0}, 
-                    (Vector3){ t, i, 0}, 
-                    COLOR_GREEN
-                    );
-        DrawLine3D(
-            (Vector3){0, -t, i}, 
-            (Vector3){0,  t, i}, 
-            COLOR_BLUE
-        );
+        DrawLine3D((Vector3){i, -t, 0}, (Vector3){i, t, 0}, COLOR_RED);
+        if (view_mode == VIEW_3D)
+            DrawLine3D((Vector3){-t, i, 0}, (Vector3){t, i, 0}, COLOR_GREEN);
+        DrawLine3D((Vector3){0, -t, i}, (Vector3){0, t, i}, COLOR_BLUE);
     }
 }
 
@@ -361,14 +339,18 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
         //animation
         float dur = 1.0;
         Color color = FEATURES_COLORS[map_label(row.variety)] ;
-        tween_vec3(e, &td->items[i].vis.pos, 
+        Tween *t_v = tween_vec3(e, &td->items[i].vis.pos, 
                 (Vector3){ 
                 .x = p_l, .y = s_w, .z = p_w
                 }, dur
                 );
+        Tween *t_r = tween_float(e, &td->items[i].vis.radius, s_l, dur);
+        Tween *t_c = tween_color(e, &td->items[i].vis.color, color, dur);
 
-        tween_float(e, &td->items[i].vis.radius, s_l, dur);
-        tween_color(e, &td->items[i].vis.color, color, dur);
+        t_v->elapsed = - 2;
+        t_r->elapsed = - 2;
+        t_r->ease = EASE_OUT_BOUNCE;
+        t_c->elapsed = - 2;
     }
 }
 
@@ -380,6 +362,10 @@ void draw_classes(){
     DrawText("VERSICOLOR", WIDTH-150, 60, 20, FEATURES_COLORS[VERSICOLOR]);
 }
 
+Color z_axes_labels =       (Color){88, 196, 221, 0};
+Color x_axes_labels =        (Color){255, 85, 85, 0};
+Color y_axes_labels =      (Color){130, 255, 100, 0};
+
 void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
     float len = 6.2f;
 
@@ -387,10 +373,11 @@ void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
     Vector2 y_pos = GetWorldToScreen((Vector3){ 0, len, 0}, *camera);
     Vector2 z_pos = GetWorldToScreen((Vector3){ 0, 0, len}, *camera);
 
-    DrawText("X petal width",  (int)x_pos.x, (int)x_pos.y, 24, COLOR_RED);
+    DrawText("X petal width",  (int)x_pos.x, (int)x_pos.y, 24, x_axes_labels); 
     if (view_mode == VIEW_3D)
-        DrawText("Y sepal width",  (int)y_pos.x, (int)y_pos.y, 24, COLOR_GREEN);
-    DrawText("Z petal length", (int)z_pos.x, (int)z_pos.y, 24, COLOR_BLUE);
+        DrawText("Y sepal width",  (int)y_pos.x, (int)y_pos.y, 24, y_axes_labels); 
+    DrawText("Z petal length", (int)z_pos.x, (int)z_pos.y, 24, z_axes_labels); 
+
 }
 
 typedef struct {
@@ -459,9 +446,21 @@ int main()
     camera.projection = CAMERA_PERSPECTIVE;
 
     toggle_view_anim(&te, &training_set, &camera, &view_mode);
-    InitWindow(WIDTH, HEIGHT, "KNN Playground");
+    Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
+    tw->ease = EASE_OUT_BOUNCE;
+    tw->elapsed = -0.5;
+
+    //labels animation
+   Tween *l1 = tween_alpha(&te, &x_axes_labels, 0, 255, 2);
+   Tween *l2 = tween_alpha(&te, &y_axes_labels, 0, 255, 2);
+   Tween *l3 = tween_alpha(&te, &z_axes_labels, 0, 255, 2);
+   l1->elapsed = -1.5;
+   l2->elapsed = -1.5;
+   l3->elapsed = -1.5;
+
+   InitWindow(WIDTH, HEIGHT, "KNN Playground");
     SetTargetFPS(60);
-    
+
     SetMousePosition(WIDTH/2, HEIGHT/2);
 
     while (!WindowShouldClose())
@@ -500,7 +499,6 @@ int main()
                         .color = WHITE }
                     };
 
-            
                 da_append(&dataset, sample);
                 Sample *entry = &da_last(&dataset);
                 tween_float(&te, &entry->vis.radius, POINT_RADIUS, 2.0) ;

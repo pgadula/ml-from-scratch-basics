@@ -26,6 +26,7 @@
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
 float lr;
+bool is_training;
 
 typedef enum {
     VIEW_2D = 0,
@@ -55,7 +56,7 @@ typedef enum {
     EUC_3D = 1,
 } DIST_METRIC;
 
-VIEW_MODE view_mode = VIEW_2D;
+VIEW_MODE view_mode = VIEW_3D;
 
 typedef struct {
     Vector3 pos;
@@ -97,20 +98,6 @@ Color CLASSIFIED_COLORS[CLASS_COUNT] = {
     RED,
     GREEN
 };
-
-//int compare_entry(const void *a, const void *b) {
-//    KNN_Entry a1 = *(const KNN_Entry*)a;
-//    KNN_Entry a2 = *(const KNN_Entry*)b;
-//    float x = a1.d;
-//    float y = a2.d;
-//    return (x > y) - (x < y);  // avoids overflow
-//}
-
-int compare_i(const void *a, const void *b) {
-    int x = *(const int*)a;
-    int y = *(const int*)b;
-    return (x > y) - (x < y);
-}
 
 float randf(float min, float max)
 {
@@ -343,7 +330,7 @@ void toggle_view_anim(TweenEngine *e, Dataset *ds, Camera *camera, VIEW_MODE *vi
     }
 }
 
-void training_svm(Dataset *dataset, SVM *svm){
+void train(Dataset *dataset, SVM *svm){
     float C = 1;
     float w1, w2, b;
     w1 = svm->w1;
@@ -439,6 +426,7 @@ void svm_icr_w2(SVM *svm, float delta){
 int main()
 {
     lr = 0.0001;
+    is_training = false;
     float delta = 0.01;
     srand(time(NULL));
     TweenEngine te = {0};
@@ -482,34 +470,17 @@ int main()
         if (IsKeyPressed(KEY_T))
             toggle_view_anim(&te, &training_set, &camera, &view_mode);
 
+        if (IsKeyPressed(KEY_Q))
+            is_training = !is_training;
         if (IsKeyPressed(KEY_I))
             svm_icr_w2(&svm, delta);
         if (IsKeyPressed(KEY_O))
             svm_icr_w1(&svm, delta);
         if (IsKeyPressed(KEY_P))
             svm_icr_b(&svm, delta);
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_ENTER)){
-            Ray ray = GetMouseRay(GetMousePosition(), camera);
-            RayCollision hit = GetRayCollisionBox(ray, ground);
-            if(hit.hit)
-            {
-                Vector3 p = hit.point;
-                Vector3 sp = {.x = p.x, .y = randf(-5, 5), .z = p.z};
-                Sample sample = { .x = sp.x, .y = sp.y, .z = sp.z, 
-                    .label = 0, 
-                    .vis = { 
-                        .pos = { .x = sp.x, .y = sp.y, .z = sp.z},
-                        .radius = 0,
-                        .color = WHITE }
-                    };
 
-            
-                da_append(&dataset, sample);
-                Sample *entry = &da_last(&dataset);
-                tween_float(&te, &entry->vis.radius, POINT_RADIUS, 2.0) ;
-            }
-        }
-        training_svm(&training_set, &svm);
+        if(is_training)
+            train(&training_set, &svm);
 
         BeginDrawing();
             ClearBackground(BACKGROUND_COLOR);
