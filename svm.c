@@ -27,6 +27,7 @@
 
 float lr;
 bool is_training;
+TweenEngine te;
 
 typedef enum {
     VIEW_2D = 0,
@@ -219,7 +220,7 @@ Vector3 random_vec3(){
 }
 
 
-void prepare_training_dataset(Dataset *td, TweenEngine *e){
+void prepare_training_dataset(Dataset *td){
     float max_sepal_length = IRIS.data[0].sepal_length;
     float max_sepal_width = IRIS.data[0].sepal_width;
     float max_petal_length = IRIS.data[0].petal_length;
@@ -263,10 +264,10 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
         int idx = td->count - 1;
         float dur = 1.0;
         Color color = FEATURES_COLORS[label];
-        tween_vec3(e, &td->items[idx].vis.pos, 
+        tween_vec3(&te, &td->items[idx].vis.pos, 
                 (Vector3){ .x = p_w, .y = p_l, .z = s_w }, dur);
-        tween_float(e, &td->items[idx].vis.radius, s_l, dur);
-        tween_color(e, &td->items[idx].vis.color, color, dur);
+        tween_float(&te, &td->items[idx].vis.radius, s_l, dur);
+        tween_color(&te, &td->items[idx].vis.color, color, dur);
     }
 }
 
@@ -297,36 +298,36 @@ typedef struct {
 } AnimCamera;
 
 
-void cam_look_at(TweenEngine *e, Camera *cam, Vector3 target){
-    tween_vec3(e, &cam->target, target, 1); 
+void cam_look_at(Camera *cam, Vector3 target){
+    tween_vec3(&te, &cam->target, target, 1); 
 }
 
-Tween *cam_move(TweenEngine *e, Camera *cam, Vector3 target){
-    return tween_vec3(e, &cam->position, target, 1); 
+Tween *cam_move(Camera *cam, Vector3 target){
+    return tween_vec3(&te, &cam->position, target, 1); 
 }
 
-void cam_fovy(TweenEngine *e, Camera *cam, float target){
-    tween_float(e, &cam->fovy, target, 2); 
+void cam_fovy(Camera *cam, float target){
+    tween_float(&te, &cam->fovy, target, 2); 
 }
 
-void toggle_view_anim(TweenEngine *e, Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
+void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
     *view_mode ^= VIEW_3D;
 
-    cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+    cam_look_at(camera, (Vector3){ 0, 0, 0 });
     if (*view_mode == VIEW_3D) {
         for (int i = 0; i < ds->count; i++) {
-            tween_vec3(e, &ds->items[i].vis.pos, 
+            tween_vec3(&te, &ds->items[i].vis.pos, 
                     (Vector3){ ds->items[i].x, ds->items[i].y, ds->items[i].z }, 1.0f);
         }
-        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
-        cam_move(e, camera, (Vector3){ 10, 10, 10 });
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
+        cam_move(camera, (Vector3){ 10, 10, 10 });
     } else {
         for (int i = 0; i < ds->count; i++) {
-            tween_vec3(e, &ds->items[i].vis.pos,
+            tween_vec3(&te, &ds->items[i].vis.pos,
                     (Vector3){ ds->items[i].x, 0, ds->items[i].z }, 1.0f);
         }
-        cam_move(e, camera, (Vector3){ 0.0, 20, 0.01 });
-        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+        cam_move(camera, (Vector3){ 0.0, 20, 0.01 });
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
     }
 }
 
@@ -429,14 +430,14 @@ int main()
     is_training = false;
     float delta = 0.01;
     srand(time(NULL));
-    TweenEngine te = {0};
+    te = (TweenEngine){0};
 
     da_reserve(&te, 1024);
 
     Dataset dataset = {0};
     Dataset training_set = {0};
 
-    prepare_training_dataset(&training_set, &te);
+    prepare_training_dataset(&training_set);
 
     BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
 
@@ -448,7 +449,7 @@ int main()
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    toggle_view_anim(&te, &training_set, &camera, &view_mode);
+    toggle_view_anim(&training_set, &camera, &view_mode);
     InitWindow(WIDTH, HEIGHT, "SVM");
     SetTargetFPS(60);
     
@@ -468,7 +469,7 @@ int main()
         }
         /* Input */
         if (IsKeyPressed(KEY_T))
-            toggle_view_anim(&te, &training_set, &camera, &view_mode);
+            toggle_view_anim(&training_set, &camera, &view_mode);
 
         if (IsKeyPressed(KEY_Q))
             is_training = !is_training;

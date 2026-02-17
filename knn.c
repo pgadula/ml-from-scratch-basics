@@ -25,6 +25,8 @@
 #define COLOR_RED        (Color){255, 85, 85, 255}
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
+TweenEngine te;
+
 typedef enum {
     VIEW_2D = 0,
     VIEW_3D = 1
@@ -160,7 +162,7 @@ void draw_arrow(float t, ArrowData *arrow){
     );
 }
 
-void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEngine *e)
+void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t)
 {
     KNN_Entry neighbors[t->count];
     for (int i = 0; i < ds->count; i++){
@@ -182,7 +184,7 @@ void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEn
 
             ArrowData *ad = malloc(sizeof(ArrowData));
             *ad = (ArrowData){ .from = c_pos, .to = entry.pos, .color = FEATURES_COLORS[entry.label]};
-            Tween *tw = tween_draw(e, draw_arrow, 3.0, ad);
+            Tween *tw = tween_draw(&te, draw_arrow, 3.0, ad);
             tw->elapsed = -(0.5 * n);
             tw->owns_data = true;
             tw->hold = 2.0;
@@ -198,7 +200,7 @@ void knn_anim(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t, TweenEn
        }
 
       ds->items[i].label = best_class;
-      tween_color(e, &ds->items[i].vis.color, CLASSIFIED_COLORS[best_class], 2.0); 
+      tween_color(&te, &ds->items[i].vis.color, CLASSIFIED_COLORS[best_class], 2.0); 
     }
 }
 
@@ -296,7 +298,7 @@ Vector3 random_vec3(){
     return (Vector3){ .x = randf(-10, 10), .y = randf(-10, 10), .z = randf(-10, 10)};
 }
 
-void prepare_training_dataset(Dataset *td, TweenEngine *e){
+void prepare_training_dataset(Dataset *td){
     da_reserve(td, IRIS.count);
 
     float max_sepal_length = IRIS.data[0].sepal_length;
@@ -339,13 +341,13 @@ void prepare_training_dataset(Dataset *td, TweenEngine *e){
         //animation
         float dur = 1.0;
         Color color = FEATURES_COLORS[map_label(row.variety)] ;
-        Tween *t_v = tween_vec3(e, &td->items[i].vis.pos, 
+        Tween *t_v = tween_vec3(&te, &td->items[i].vis.pos, 
                 (Vector3){ 
                 .x = p_l, .y = s_w, .z = p_w
                 }, dur
                 );
-        Tween *t_r = tween_float(e, &td->items[i].vis.radius, s_l, dur);
-        Tween *t_c = tween_color(e, &td->items[i].vis.color, color, dur);
+        Tween *t_r = tween_float(&te, &td->items[i].vis.radius, s_l, dur);
+        Tween *t_c = tween_color(&te, &td->items[i].vis.color, color, dur);
 
         t_v->elapsed = - 2;
         t_r->elapsed = - 2;
@@ -390,36 +392,39 @@ typedef struct {
 } AnimCamera;
 
 
-void cam_look_at(TweenEngine *e, Camera *cam, Vector3 target){
-    tween_vec3(e, &cam->target, target, 1); 
+void cam_look_at(Camera *cam, Vector3 target){
+    tween_vec3(&te, &cam->target, target, 1); 
 }
 
-Tween *cam_move(TweenEngine *e, Camera *cam, Vector3 target){
-    return tween_vec3(e, &cam->position, target, 1); 
+Tween *cam_move(Camera *cam, Vector3 target){
+    return tween_vec3(&te, &cam->position, target, 1); 
 }
 
-void cam_fovy(TweenEngine *e, Camera *cam, float target){
-    tween_float(e, &cam->fovy, target, 2); 
+void cam_fovy(Camera *cam, float target){
+    tween_float(&te, &cam->fovy, target, 2); 
 }
 
-void toggle_view_anim(TweenEngine *e, Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
+void animate_labels(){
+}
+
+void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
     *view_mode ^= VIEW_3D;
 
-    cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+    cam_look_at(camera, (Vector3){ 0, 0, 0 });
     if (*view_mode == VIEW_3D) {
         for (int i = 0; i < ds->count; i++) {
-            tween_vec3(e, &ds->items[i].vis.pos, 
+            tween_vec3(&te, &ds->items[i].vis.pos, 
                     (Vector3){ ds->items[i].x, ds->items[i].y, ds->items[i].z }, 1.0f);
         }
-        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
-        cam_move(e, camera, (Vector3){ 10, 10, 10 });
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
+        cam_move(camera, (Vector3){ 10, 10, 10 });
     } else {
         for (int i = 0; i < ds->count; i++) {
-            tween_vec3(e, &ds->items[i].vis.pos,
+            tween_vec3(&te, &ds->items[i].vis.pos,
                     (Vector3){ ds->items[i].x, 0, ds->items[i].z }, 1.0f);
         }
-        cam_move(e, camera, (Vector3){ 0.0, 20, 0.01 });
-        cam_look_at(e, camera, (Vector3){ 0, 0, 0 });
+        cam_move(camera, (Vector3){ 0.0, 20, 0.01 });
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
     }
 }
 
@@ -427,14 +432,13 @@ int main()
 {
     srand(time(NULL));
 
-    TweenEngine te = {0};
-
+    te = (TweenEngine){0};
     da_reserve(&te, 1024);
 
     Dataset dataset = {0};
     Dataset training_set = {0};
 
-    prepare_training_dataset(&training_set, &te);
+    prepare_training_dataset(&training_set);
 
     BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
 
@@ -445,7 +449,7 @@ int main()
     camera.fovy = 45.0f;
     camera.projection = CAMERA_PERSPECTIVE;
 
-    toggle_view_anim(&te, &training_set, &camera, &view_mode);
+    toggle_view_anim(&training_set, &camera, &view_mode);
     Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
     tw->ease = EASE_OUT_BOUNCE;
     tw->elapsed = -0.5;
@@ -454,6 +458,7 @@ int main()
    Tween *l1 = tween_alpha(&te, &x_axes_labels, 0, 255, 2);
    Tween *l2 = tween_alpha(&te, &y_axes_labels, 0, 255, 2);
    Tween *l3 = tween_alpha(&te, &z_axes_labels, 0, 255, 2);
+
    l1->elapsed = -1.5;
    l2->elapsed = -1.5;
    l3->elapsed = -1.5;
@@ -477,9 +482,9 @@ int main()
         }
         /* Input */
         if (IsKeyPressed(KEY_T))
-            toggle_view_anim(&te, &training_set, &camera, &view_mode);
+            toggle_view_anim(&training_set, &camera, &view_mode);
         if (IsKeyPressed(KEY_K))
-            knn_anim(5, view_mode, &dataset, &training_set, &te);
+            knn_anim(5, view_mode, &dataset, &training_set);
         if (IsKeyPressed(KEY_R))
             reset_points(&dataset);
         if (IsKeyPressed(KEY_P))
