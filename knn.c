@@ -117,11 +117,6 @@ float randf(float min, float max)
     return min + (float)rand() / RAND_MAX * (max - min);
 }
 
-void toggle_view(VIEW_MODE* view_mode)
-{
-    *view_mode ^= VIEW_3D;
-}
-
 void reset_points(Dataset *dataset)
 {
     dataset->count = 0;
@@ -411,10 +406,12 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
     *view_mode ^= VIEW_3D;
 
     cam_look_at(camera, (Vector3){ 0, 0, 0 });
+    Tween *tw;
     if (*view_mode == VIEW_3D) {
         for (int i = 0; i < ds->count; i++) {
-            tween_vec3(&te, &ds->items[i].vis.pos, 
+            tw = tween_vec3(&te, &ds->items[i].vis.pos, 
                     (Vector3){ ds->items[i].x, ds->items[i].y, ds->items[i].z }, 1.0f);
+            tw->ease = EASE_OUT_BOUNCE;
         }
         cam_look_at(camera, (Vector3){ 0, 0, 0 });
         cam_move(camera, (Vector3){ 10, 10, 10 });
@@ -423,7 +420,7 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
             tween_vec3(&te, &ds->items[i].vis.pos,
                     (Vector3){ ds->items[i].x, 0, ds->items[i].z }, 1.0f);
         }
-        cam_move(camera, (Vector3){ 0.0, 20, 0.01 });
+        cam_move(camera, (Vector3){ 0.0, 15, 0.01 });
         cam_look_at(camera, (Vector3){ 0, 0, 0 });
     }
 }
