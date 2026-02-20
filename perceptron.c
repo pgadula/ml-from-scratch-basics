@@ -24,6 +24,7 @@
 #define COLOR_RED        (Color){255, 85, 85, 255}
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
+float lr = 0.0001;
 TweenEngine te;
 
 typedef enum {
@@ -31,47 +32,14 @@ typedef enum {
     VIEW_3D = 1
 } VIEW_MODE;
 
-typedef enum {
-    UNKNOWN = 0,
-    SETOSA = 1,
-    VIRGINICA = 2,
-    VERSICOLOR = 3
-} IRIS_LABEL;
 
-
-IRIS_LABEL map_label(const char *input) {
-    if (strcmp(input, "Setosa") == 0)
-        return SETOSA;
-    if (strcmp(input, "Virginica") == 0)
-        return VIRGINICA;
-    if (strcmp(input, "Versicolor") == 0)
-        return VERSICOLOR;
-    return UNKNOWN;
-}
-
-typedef enum {
-    EUC_2D = 0,
-    EUC_3D = 1,
-} DIST_METRIC;
-
-VIEW_MODE view_mode = VIEW_2D;
+VIEW_MODE view_mode = VIEW_3D;
 
 typedef struct {
     float *w;
+    int num_weights;
     float b;
 } Perceptron;
-
-
-typedef struct{
-    float v0;
-    float label;
-}Sample;
-
-typedef struct {
-    int count;
-    int capacity;
-    Sample *items;
-} TrainingSet;
 
 
 float randf(float min, float max)
@@ -101,29 +69,9 @@ void draw_arrow(float t, ArrowData *arrow){
 
 float axes_len = 0.0f; 
 
-void draw_axes(VIEW_MODE view_mode) {
-    float len = axes_len;
-    if (len < 0.01f) return;
-    
-    DrawLine3D((Vector3){-len, 0, 0}, (Vector3){ len, 0, 0}, RED);
-    if (view_mode == VIEW_3D)
-        DrawLine3D((Vector3){0, -len, 0}, (Vector3){0, len, 0}, GREEN);
-    DrawLine3D((Vector3){0, 0, -len}, (Vector3){0, 0, len}, BLUE);
-
-    int ticks = (int)len;
-    for (int i = -ticks; i <= ticks; i++) {
-        float t = 0.1f;
-        DrawLine3D((Vector3){i, -t, 0}, (Vector3){i, t, 0}, COLOR_RED);
-        if (view_mode == VIEW_3D)
-            DrawLine3D((Vector3){-t, i, 0}, (Vector3){t, i, 0}, COLOR_GREEN);
-        DrawLine3D((Vector3){0, -t, i}, (Vector3){0, t, i}, COLOR_BLUE);
-    }
-}
-
 Vector3 random_vec3(){
     return (Vector3){ .x = randf(-10, 10), .y = randf(-10, 10), .z = randf(-10, 10)};
 }
-
 
 Color z_axes_labels =       (Color){88, 196, 221, 0};
 Color x_axes_labels =        (Color){255, 85, 85, 0};
@@ -143,15 +91,6 @@ void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
 
 }
 
-typedef struct {
-    Camera camera;
-
-    //animation props
-    Vector3 desire_target;
-    Vector3 desire_pos;
-    float desire_fovy;
-} AnimCamera;
-
 
 void cam_look_at(Camera *cam, Vector3 target){
     tween_vec3(&te, &cam->target, target, 1); 
@@ -166,28 +105,351 @@ void cam_fovy(Camera *cam, float target){
 }
 
 
-void draw_perceptron(const Perceptron *perceptron){
+//float activation_fn(float sum){
+//    return sum > 0 ? 1 : 0;
+//}
 
+float activation_fn(float sum){
+    return 1.0f / (1.0f + expf(-sum));
 }
 
-void train(Perceptron *perceptron, TrainingSet *dataset){
-   int weights_count = sizeof(perceptron->w) / sizeof(perceptron->w[0]);
-   assert(weights_count == dataset->count); 
-   
+void train(Perceptron *p,  int sample_count, int input_count, float dataset[sample_count][input_count
+], float *errors){
+    float results = 0.0;
+    *errors = 0;
+
+    for(int i = 0; i < sample_count; i++){
+        float *weights = p->w;
+        float *data = dataset[i];
+        float expected = data[input_count-1];
+        float sum = 0;
+        for(int j = 0; j < input_count-1; j++){
+            sum += weights[j] * data[j]; 
+        }
+        sum += p->b;
+        float output = activation_fn(sum);
+        float error = output - expected;
+        *errors += error * error;
+        for(int j = 0; j < input_count-1; j++){
+            p->w[j] -= lr * error * data[j];
+        }
+
+        p->b -= lr * error;
+    }
+    *errors =  *errors / (float)sample_count;
 }
 
 float cost(){
     return 0;
 }
+
+//training sets
+float SERIES_Dataset[4][2] = {
+    { 0, 2},
+    { 1, 4},
+    { 2, 6},
+    { 3, 8}
+};
+
+float OR_Dataset[4][3] = {
+    { 0, 1, 1},
+    { 1, 0, 1},
+    { 0, 0, 0},
+    { 1, 1, 1}
+};
+
+float AND_Dataset[4][3] = {
+    { 1, 0, 0},
+    { 0, 1, 0},
+    { 0, 0, 0},
+    { 1, 1, 1}
+};
+
+
+float NAND_Dataset[4][3] = {
+    { 0, 1, 1},
+    { 1, 0, 1},
+    { 0, 0, 1},
+    { 1, 1, 0}
+};
+
+float XOR_Dataset[4][3] = {
+    { 0, 1, 1},
+    { 1, 0, 1},
+    { 0, 0, 0},
+    { 1, 1, 1}
+};
+
+float predict(const Perceptron *p, float *inputs) {
+    float sum = 0;
+    for (int j = 0; j < p->num_weights; j++)
+        sum += p->w[j] * inputs[j];
+    sum += p->b;
+    return activation_fn(sum);
+}
+
+void init_perceptron(Perceptron *p, int input_size){
+    p->w = malloc(sizeof(float) * input_size);
+    p->num_weights = input_size;
+    for(int i = 0; i < input_size; i++){
+       p->w[i] = randf(0, 1); 
+    }
+}
+
+void draw_dataset_points(int sample_count, int input_count, float dataset[][input_count], const Camera *camera) {
+    for (int i = 0; i < sample_count; i++) {
+        float x = dataset[i][0];
+        float z = dataset[i][1] * i;
+        float label = dataset[i][input_count - 1];
+
+        Vector3 pos = (Vector3){ x, z, 0 };
+
+        Color c = label > 0.5f ? COLOR_RED : COLOR_BLUE;
+        DrawSphere(pos, POINT_RADIUS, c);
+    }
+}
+
+void toggle_view_anim(Camera *camera, VIEW_MODE *view_mode) {
+    *view_mode ^= VIEW_3D;
+
+    cam_look_at(camera, (Vector3){ 0, 0, 0 });
+    Tween *tw;
+    if (*view_mode == VIEW_3D) {
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
+        cam_move(camera, (Vector3){ 10, 10, 10 });
+    } else {
+        cam_move(camera, (Vector3){ 0.0, 15, 0.01 });
+        cam_look_at(camera, (Vector3){ 0, 0, 0 });
+    }
+}
+
+float perc_anim_t = 0.0f;        // główny progress animacji struktury
+float pulse_t = 0.0f;            // pulsowanie neuronu
+float signal_t[3] = {0};         // animacja sygnału po połączeniach (max 3 inputy)
+float output_signal_t = 0.0f;    // sygnał wyjściowy
+bool perc_anim_started = false;
+
+void start_perceptron_anim() {
+    if (perc_anim_started) return;
+    perc_anim_started = true;
+
+    // Fade in struktury
+    Tween *tw = tween_float(&te, &perc_anim_t, 1.0f, 1.5f);
+    tw->ease = EASE_OUT_QUAD;
+
+    // Sygnały po połączeniach z delayem
+    for (int i = 0; i < 3; i++) {
+        signal_t[i] = 0;
+        Tween *s = tween_float(&te, &signal_t[i], 1.0f, 0.6f);
+        s->ease = EASE_IN_OUT_QUAD;
+        s->elapsed = -1.5f - i * 0.2f; // delay per connection
+    }
+
+    // Output signal
+    output_signal_t = 0;
+    Tween *out = tween_float(&te, &output_signal_t, 1.0f, 0.5f);
+    out->ease = EASE_OUT_QUAD;
+    out->elapsed = -2.5f;
+
+    // Pulse neuron
+    Tween *p = tween_float(&te, &pulse_t, 1.0f, 0.4f);
+    p->ease = EASE_OUT_BOUNCE;
+    p->elapsed = -2.3f;
+}
+
+void draw_perceptron_structure(const Perceptron *p, float *inputs, float output, float expected) {
+    int x_start = WIDTH * 0.10;
+    int y_start = HEIGHT * 0.30;
+    int base_radius = 30;
+    int spacing_y = 120;
+    int layer_gap = 250;
+    int n = p->num_weights;
+
+    float alpha = perc_anim_t * 255;
+    if (alpha < 1) return;
+
+    int y_offset = y_start + 50;
+
+    // === INPUT NODES ===
+    Vector2 input_pos[n];
+    for (int i = 0; i < n; i++) {
+        input_pos[i] = (Vector2){ x_start, y_offset + i * spacing_y };
+
+        // Pulse on signal arrival
+        float r = base_radius + (signal_t[i] > 0.5f ? sinf(signal_t[i] * PI) * 5 : 0);
+
+        Color col = COLOR_BLUE;
+        col.a = (unsigned char)alpha;
+        DrawCircleLines(input_pos[i].x, input_pos[i].y, r, col);
+
+        // Glow when signal passes
+        if (signal_t[i] > 0.01f && signal_t[i] < 0.99f) {
+            Color glow = COLOR_BLUE;
+            glow.a = (unsigned char)(sinf(signal_t[i] * PI) * 100);
+            DrawCircle(input_pos[i].x, input_pos[i].y, r + 8, glow);
+        }
+
+      // New:
+        char label[32];
+        snprintf(label, sizeof(label), "x%d=%.2f", i, inputs[i]);
+        Color label_col = COLOR_BLUE;
+        label_col.a = (unsigned char)alpha;
+        int tw = MeasureText(label, 20);
+        DrawText(label, input_pos[i].x - tw/2, input_pos[i].y - 8, 20, label_col); 
+    }
+
+    Vector2 bias_pos = { x_start, y_offset - spacing_y };
+    {
+        Color col = COLOR_GRAY;
+        col.a = (unsigned char)alpha;
+        DrawCircleLines(bias_pos.x, bias_pos.y, base_radius, col);
+        DrawText("b", bias_pos.x - 5, bias_pos.y - 8, 20, col);
+    }
+
+    // === NEURON (output node) ===
+    float center_y = y_offset + (n - 1) * spacing_y / 2.0f;
+    Vector2 neuron_pos = { x_start + layer_gap, center_y };
+    {
+        // Neuron pulses when activated
+        float neuron_r = base_radius + pulse_t * sinf(GetTime() * 4) * 4;
+
+        // Fill color interpolates based on output
+        Color fill = lerp_color(COLOR_BLUE, COLOR_RED, output);
+        fill.a = (unsigned char)(alpha * 0.8f);
+        DrawCircle(neuron_pos.x, neuron_pos.y, neuron_r, fill);
+
+        Color outline = WHITE;
+        outline.a = (unsigned char)alpha;
+        DrawCircleLines(neuron_pos.x, neuron_pos.y, neuron_r, outline);
+
+        // Output value fades in
+        if (output_signal_t > 0.1f) {
+            char out_buf[32];
+            snprintf(out_buf, sizeof(out_buf), "%.2f", output);
+            Color txt = BLACK;
+            txt.a = (unsigned char)(output_signal_t * 255);
+            DrawText(out_buf, neuron_pos.x - 15, neuron_pos.y - 8, 18, txt);
+        }
+    }
+
+    // === CONNECTIONS: input -> neuron ===
+    for (int i = 0; i < n; i++) {
+        float w = p->w[i];
+        float thickness = fminf(fabsf(w) * 3.0f + 1.0f, 6.0f);
+        Color c = w >= 0 ? COLOR_RED : COLOR_BLUE;
+        c.a = (unsigned char)(alpha * 0.7f);
+
+        Vector2 from = { input_pos[i].x + base_radius, input_pos[i].y };
+        Vector2 to   = { neuron_pos.x - base_radius, neuron_pos.y };
+
+        // Line grows in with perc_anim_t
+        Vector2 current_to = {
+            lerpf(from.x, to.x, perc_anim_t),
+            lerpf(from.y, to.y, perc_anim_t),
+        };
+        DrawLineEx(from, current_to, thickness, c);
+
+        // Animated signal dot traveling along connection
+        if (signal_t[i] > 0.01f && signal_t[i] < 0.99f) {
+            float st = signal_t[i];
+            Vector2 dot = { lerpf(from.x, to.x, st), lerpf(from.y, to.y, st) };
+            Color dot_col = YELLOW;
+            dot_col.a = (unsigned char)(sinf(st * PI) * 255);
+            DrawCircle(dot.x, dot.y, 6, dot_col);
+        }
+
+        // Weight label
+        char w_buf[32];
+        snprintf(w_buf, sizeof(w_buf), "%.3f", w);
+        int mid_x = (input_pos[i].x + neuron_pos.x) / 2;
+        int mid_y = (input_pos[i].y + neuron_pos.y) / 2 - 15;
+        Color wc = c;
+        wc.a = (unsigned char)alpha;
+        DrawText(w_buf, mid_x, mid_y, 16, wc);
+    }
+
+    // === BIAS CONNECTION ===
+    {
+        float thickness = fminf(fabsf(p->b) * 3.0f + 1.0f, 6.0f);
+        Color col = COLOR_GRAY;
+        col.a = (unsigned char)(alpha * 0.7f);
+
+        Vector2 from = { bias_pos.x + base_radius, bias_pos.y };
+        Vector2 to   = { neuron_pos.x - base_radius, neuron_pos.y };
+        Vector2 current_to = {
+            lerpf(from.x, to.x, perc_anim_t),
+            lerpf(from.y, to.y, perc_anim_t),
+        };
+        DrawLineEx(from, current_to, thickness, col);
+
+        char b_buf[32];
+        snprintf(b_buf, sizeof(b_buf), "%.3f", p->b);
+        int mid_x = (bias_pos.x + neuron_pos.x) / 2;
+        int mid_y = (bias_pos.y + neuron_pos.y) / 2 - 15;
+        DrawText(b_buf, mid_x, mid_y, 16, col);
+    }
+
+    // === OUTPUT ARROW ===
+    if (output_signal_t > 0.01f) {
+        Vector2 from = { neuron_pos.x + base_radius, neuron_pos.y };
+        Vector2 to   = { neuron_pos.x + layer_gap - 50, neuron_pos.y };
+        Vector2 current_to = {
+            lerpf(from.x, to.x, output_signal_t),
+            lerpf(from.y, to.y, output_signal_t),
+        };
+
+        Color lc = WHITE;
+        lc.a = (unsigned char)(output_signal_t * 255);
+        DrawLineEx(from, current_to, 2, lc);
+
+        if (output_signal_t > 0.8f) {
+            char exp_buf[64];
+            snprintf(exp_buf, sizeof(exp_buf), "out=%.2f exp=%.0f", output, expected);
+            Color tc = WHITE;
+            tc.a = (unsigned char)((output_signal_t - 0.8f) * 5.0f * 255);
+            DrawText(exp_buf, to.x + 10, to.y - 10, 18, tc);
+        }
+    }
+
+    // Title
+    Color title = WHITE;
+    title.a = (unsigned char)alpha;
+    DrawText("Perceptron", x_start + 80, y_start - 50, 24, title);
+}
+
+void trigger_signal_anim() {
+    for (int i = 0; i < 3; i++) {
+        signal_t[i] = 0;
+        Tween *s = tween_float(&te, &signal_t[i], 1.0f, 0.6f);
+        s->ease = EASE_IN_OUT_QUAD;
+        s->elapsed = -0.1f - i * 0.15f;
+    }
+    output_signal_t = 0;
+    Tween *out = tween_float(&te, &output_signal_t, 1.0f, 0.5f);
+    out->ease = EASE_OUT_QUAD;
+    out->elapsed = -0.8f;
+
+    pulse_t = 0;
+    Tween *pt = tween_float(&te, &pulse_t, 1.0f, 0.4f);
+    pt->ease = EASE_OUT_BOUNCE;
+    pt->elapsed = -0.7f;
+}
+
 int main()
 {
+    
+    bool is_training_run = false;
     srand(time(NULL));
+    float errors = 99.9;
 
     te = (TweenEngine){0};
+    da_reserve(&te, 1024);
+    
+    Perceptron perceptron = {0};
+    
 
-    TrainingSet training_set = {0};
+    init_perceptron(&perceptron, 2);
 
-    BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
 
     Camera camera = { 0 };
     camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
@@ -200,44 +462,40 @@ int main()
     tw->ease = EASE_OUT_BOUNCE;
     tw->elapsed = -0.5;
 
-    //labels animation
-   Tween *l1 = tween_alpha(&te, &x_axes_labels, 0, 255, 2);
-   Tween *l2 = tween_alpha(&te, &y_axes_labels, 0, 255, 2);
-   Tween *l3 = tween_alpha(&te, &z_axes_labels, 0, 255, 2);
 
-   l1->elapsed = -1.5;
-   l2->elapsed = -1.5;
-   l3->elapsed = -1.5;
-
-   InitWindow(WIDTH, HEIGHT, "Perceptron");
-   SetTargetFPS(60);
+    InitWindow(WIDTH, HEIGHT, "Perceptron");
+    SetTargetFPS(60);
 
     SetMousePosition(WIDTH/2, HEIGHT/2);
+    int epochs = 1000;
+    start_perceptron_anim();
 
     while (!WindowShouldClose())
     {
         float dt = GetFrameTime(); 
-  //      if (view_mode == VIEW_3D)
-  //         UpdateCamera(&camera, CAMERA_FREE);
-  //      else{
-  //          float scroll = GetMouseWheelMove();
-  //          if (scroll != 0){
-  //              tween_float(&te, &camera.fovy, 
-  //              Clamp(camera.fovy - scroll * 3.0f, 10.0f, 90.0f), 0.3f);
-  //          }
-  //      }
-        /* Input */
+        tween_update(&te, dt);
+        if (IsKeyPressed(KEY_SPACE) || is_training_run) {
+            for(int e = 0; e < epochs; e++)
+                train(&perceptron, 4, 3, AND_Dataset, &errors);
+            trigger_signal_anim();
+        }
+        if (IsKeyPressed(KEY_Q)) {
+            is_training_run = !is_training_run;
+        }
+
+        if (IsKeyPressed(KEY_T)) {
+            toggle_view_anim(&camera, &view_mode);
+        }
+
         BeginDrawing();
             ClearBackground(BACKGROUND_COLOR);
-            BeginMode3D(camera);
+            float test_input[] = {1, 1};
+            float out = predict(&perceptron, test_input);
+            draw_perceptron_structure(&perceptron, test_input, out, 1.0f);
 
-  //              tween_update(&te, dt);
-  //              if(view_mode == VIEW_2D)
-  //                  DrawGrid(10, 1);        // Draw a grid
-  //              draw_axes(view_mode);
-  //          EndMode3D();
-  //              draw_axis_labels(&camera, view_mode);
-  //              DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
+            char buf[256];
+            snprintf(buf, sizeof(buf), "w0=%.4f w1=%.4f b=%.4f error=%.4f", perceptron.w[0], perceptron.w[1], perceptron.b, errors);
+            DrawText(buf, 20, 50, 20, COLOR_GREEN);
         EndDrawing();
     }
     CloseWindow();
