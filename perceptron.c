@@ -10,6 +10,9 @@
 #include "nob.h"
 
 #include "anim.h"
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
 
 #define WIDTH 1920
 #define HEIGHT 1024
@@ -435,43 +438,15 @@ void trigger_signal_anim() {
     pt->elapsed = -0.7f;
 }
 
-int main()
-{
-    
-    bool is_training_run = false;
-    srand(time(NULL));
-    float errors = 99.9;
 
-    te = (TweenEngine){0};
-    da_reserve(&te, 1024);
-    
-    Perceptron perceptron = {0};
-    
+bool is_training_run = false;
+float errors = 99.9;
+Perceptron perceptron = {0};
+int epochs = 1000;
 
-    init_perceptron(&perceptron, 2);
+Camera camera = { 0 };
 
-
-    Camera camera = { 0 };
-    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
-    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
-
-    Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
-    tw->ease = EASE_OUT_BOUNCE;
-    tw->elapsed = -0.5;
-
-
-    InitWindow(WIDTH, HEIGHT, "Perceptron");
-    SetTargetFPS(60);
-
-    SetMousePosition(WIDTH/2, HEIGHT/2);
-    int epochs = 1000;
-    start_perceptron_anim();
-
-    while (!WindowShouldClose())
-    {
+void update_frame(){
         float dt = GetFrameTime(); 
         tween_update(&te, dt);
         if (IsKeyPressed(KEY_SPACE) || is_training_run) {
@@ -497,7 +472,40 @@ int main()
             snprintf(buf, sizeof(buf), "w0=%.4f w1=%.4f b=%.4f error=%.4f", perceptron.w[0], perceptron.w[1], perceptron.b, errors);
             DrawText(buf, 20, 50, 20, COLOR_GREEN);
         EndDrawing();
+}
+int main()
+{
+    
+    srand(time(NULL));
+
+    te = (TweenEngine){0};
+    da_reserve(&te, 1024);
+    init_perceptron(&perceptron, 2);
+
+    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
+    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = 45.0f;
+    camera.projection = CAMERA_PERSPECTIVE;
+
+    Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
+    tw->ease = EASE_OUT_BOUNCE;
+    tw->elapsed = -0.5;
+
+    InitWindow(WIDTH, HEIGHT, "Perceptron");
+    SetTargetFPS(60);
+
+    SetMousePosition(WIDTH/2, HEIGHT/2);
+    start_perceptron_anim();
+
+#if defined(PLATFORM_WEB)
+    emscripten_set_main_loop(update_frame, 0, 1);
+#else
+    while (!WindowShouldClose())
+    {
+        update_frame();
     }
+#endif
     CloseWindow();
     return 0;
 }

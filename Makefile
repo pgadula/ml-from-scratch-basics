@@ -53,6 +53,57 @@ svm_debug: svm_debug.o
 
 clean:
 	rm -f $(PROGS) $(PROGS_DEBUG) *.o *.d
+	rm -f docs/*.js docs/*.wasm
+	find docs -name '*.html' ! -name 'index.html' -delete
 
 # Dependency files (auto)
 -include *.d
+
+# -------- Web (Emscripten) --------
+RAYLIB_WEB_LIB := third_party/raylib/lib/libraylib.web.a
+EMSDK_FLAGS := -Os -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 -DPLATFORM_WEB --shell-file $(CURDIR)/shell.html
+WEB_PROGS := knn.html perceptron.html svm.html
+
+.PHONY: web serve
+
+web: $(WEB_PROGS)
+
+# -------- Web builds --------
+knn.html: knn.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
+perceptron.html: perceptron.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
+svm.html: svm.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
+serve: web
+	cd docs && python3 -m http.server 8080
+
+
+RAYLIB_WEB_LIB := third_party/raylib/lib/libraylib.web.a
+EMSDK_FLAGS := -Os -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 -DPLATFORM_WEB --shell-file $(CURDIR)/shell.html
+
+WEB_PROGS := knn.html perceptron.html svm.html
+
+.PHONY: web serve
+
+web: $(WEB_PROGS)
+	#
+# -------- Web builds --------
+knn.html: knn.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
+perceptron.html: perceptron.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
+svm.html: svm.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+

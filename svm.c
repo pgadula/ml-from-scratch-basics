@@ -9,6 +9,10 @@
 #define NOB_IMPLEMENTATION
 #include "nob.h"
 
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
+
 #include "anim.h"
 #include "iris.h"
 
@@ -26,6 +30,9 @@
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
 TweenEngine te;
+float lr = 0.0001;
+bool is_training = false;
+float delta = 0.01;
 
 typedef struct{
    float b; 
@@ -324,7 +331,7 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
 }
 
 void train(Dataset *dataset, SVM *svm){
-    float C = 1;
+    float C = 2;
     float w1, w2, b;
     w1 = svm->w1;
     w2 = svm->w2;
@@ -346,9 +353,9 @@ void train(Dataset *dataset, SVM *svm){
                 w2 -= lr * w2;
             }
             else{
-                w1 -= lr * (w1 - C*yi*x1);
-                w2 -= lr * (w2 - C*yi*x2);
-                b  -= lr * (-C*yi);
+                w1 -= lr * (w1 - C * yi * x1);
+                w2 -= lr * (w2 - C * yi * x2);
+                b  -= lr * (-C * yi);
             }
         }
     }
@@ -484,39 +491,14 @@ float compute_loss(const Dataset *ds, const SVM *svm) {
 }
 
 
-int main()
-{
-    lr = 0.0001;
-    is_training = false;
-    float delta = 0.01;
-    srand(time(NULL));
-    te = (TweenEngine){0};
 
-    da_reserve(&te, 1024);
+Dataset dataset = {0};
+Dataset training_set = {0};
+BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
+Camera camera = { 0 };
+SVM svm = {0};
 
-    Dataset dataset = {0};
-    Dataset training_set = {0};
-
-    prepare_training_dataset(&training_set);
-
-    BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
-
-    SVM svm = {0};
-    Camera camera = { 0 };
-    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
-    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
-
-    toggle_view_anim(&training_set, &camera, &view_mode);
-    InitWindow(WIDTH, HEIGHT, "SVM");
-    SetTargetFPS(60);
-    HideCursor(); 
-    SetMousePosition(WIDTH/2, HEIGHT/2);
-
-    while (!WindowShouldClose())
-    {
+void update_frame(){
         float dt = GetFrameTime(); 
         if (view_mode == VIEW_3D)
            UpdateCamera(&camera, CAMERA_FREE);
@@ -576,7 +558,39 @@ int main()
                 
                 draw_classes();
         EndDrawing();
+}
+
+int main()
+{
+    srand(time(NULL));
+    te = (TweenEngine){0};
+
+    da_reserve(&te, 1024);
+
+
+    prepare_training_dataset(&training_set);
+
+
+    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
+    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = 45.0f;
+    camera.projection = CAMERA_PERSPECTIVE;
+
+    toggle_view_anim(&training_set, &camera, &view_mode);
+    InitWindow(WIDTH, HEIGHT, "SVM");
+    SetTargetFPS(60);
+    HideCursor(); 
+    SetMousePosition(WIDTH/2, HEIGHT/2);
+
+#if defined(PLATFORM_WEB)
+    emscripten_set_main_loop(update_frame, 0, 1);
+#else
+    while (!WindowShouldClose())
+    {
+        update_frame();
     }
+#endif
     CloseWindow();
     return 0;
 }

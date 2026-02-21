@@ -12,6 +12,10 @@
 #include "anim.h"
 #include "iris.h"
 
+#if defined(PLATFORM_WEB)
+    #include <emscripten/emscripten.h>
+#endif
+
 #define WIDTH 1920
 #define HEIGHT 1024
 
@@ -425,48 +429,13 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
     }
 }
 
-int main()
-{
-    srand(time(NULL));
 
-    te = (TweenEngine){0};
-    da_reserve(&te, 1024);
+Dataset dataset = {0};
+Dataset training_set = {0};
+Camera camera = { 0 };
+BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
 
-    Dataset dataset = {0};
-    Dataset training_set = {0};
-
-    prepare_training_dataset(&training_set);
-
-    BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
-
-    Camera camera = { 0 };
-    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
-    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
-    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
-    camera.fovy = 45.0f;
-    camera.projection = CAMERA_PERSPECTIVE;
-
-    toggle_view_anim(&training_set, &camera, &view_mode);
-    Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
-    tw->ease = EASE_OUT_BOUNCE;
-    tw->elapsed = -0.5;
-
-    //labels animation
-   Tween *l1 = tween_alpha(&te, &x_axes_labels, 0, 255, 2);
-   Tween *l2 = tween_alpha(&te, &y_axes_labels, 0, 255, 2);
-   Tween *l3 = tween_alpha(&te, &z_axes_labels, 0, 255, 2);
-
-   l1->elapsed = -1.5;
-   l2->elapsed = -1.5;
-   l3->elapsed = -1.5;
-
-   InitWindow(WIDTH, HEIGHT, "KNN Playground");
-    SetTargetFPS(60);
-
-    SetMousePosition(WIDTH/2, HEIGHT/2);
-
-    while (!WindowShouldClose())
-    {
+void update_frame(void){
         float dt = GetFrameTime(); 
         if (view_mode == VIEW_3D)
            UpdateCamera(&camera, CAMERA_FREE);
@@ -522,7 +491,50 @@ int main()
                 DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
                 draw_classes();
         EndDrawing();
+}
+int main()
+{
+    srand(time(NULL));
+
+    te = (TweenEngine){0};
+    da_reserve(&te, 1024);
+
+    prepare_training_dataset(&training_set);
+
+
+    camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
+    camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
+    camera.up = (Vector3){ 0.0f, 1.0f, 0.0f };
+    camera.fovy = 45.0f;
+    camera.projection = CAMERA_PERSPECTIVE;
+
+    toggle_view_anim(&training_set, &camera, &view_mode);
+    Tween *tw = tween_float(&te, &axes_len, 6.0f, 2.0f);
+    tw->ease = EASE_OUT_BOUNCE;
+    tw->elapsed = -0.5;
+
+    //labels animation
+   Tween *l1 = tween_alpha(&te, &x_axes_labels, 0, 255, 2);
+   Tween *l2 = tween_alpha(&te, &y_axes_labels, 0, 255, 2);
+   Tween *l3 = tween_alpha(&te, &z_axes_labels, 0, 255, 2);
+
+   l1->elapsed = -1.5;
+   l2->elapsed = -1.5;
+   l3->elapsed = -1.5;
+
+   InitWindow(WIDTH, HEIGHT, "KNN Playground");
+    SetTargetFPS(60);
+
+    SetMousePosition(WIDTH/2, HEIGHT/2);
+
+#if defined(PLATFORM_WEB)
+    emscripten_set_main_loop(update_frame, 0, 1);
+#else
+    while (!WindowShouldClose())
+    {
+        update_frame();
     }
+#endif
     CloseWindow();
     return 0;
 }
