@@ -147,11 +147,11 @@ float cost(){
 }
 
 //training sets
-float SERIES_Dataset[4][2] = {
-    { 0, 2},
-    { 1, 4},
-    { 2, 6},
-    { 3, 8}
+float Base_Dataset[4][2] = {
+    { 1, 2},
+    { 2, 4},
+    { 3, 6},
+    { 4, 8}
 };
 
 float OR_Dataset[4][3] = {

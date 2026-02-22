@@ -29,6 +29,7 @@
 #define COLOR_RED        (Color){255, 85, 85, 255}
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
+
 TweenEngine te;
 
 typedef enum {
@@ -153,7 +154,6 @@ void draw_arrow(float t, ArrowData *arrow){
         arrow->to.y = 0;
     }
 
-
     DrawLine3D(
         arrow->from,
         lerp_vec3(arrow->from, arrow->to, t),
@@ -237,16 +237,6 @@ void knn(int k, DIST_METRIC metric,  Dataset *ds, const Dataset *t)
     }
 }
 
-void generate_points(Dataset *dataset)
-{
-    reset_points(dataset);
-    Sample* points = dataset->items;
-    for (int i = 0; i < dataset->capacity; i++)
-    {
-        Sample pt = (Sample){.x = randf(0, WIDTH), .y = randf(0, HEIGHT), .z = randf(0, WIDTH), .label = UNKNOWN};
-        da_append(dataset, pt);
-    }
-}
 
 float axes_len = 0.0f; 
 
@@ -430,10 +420,37 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
 }
 
 
+void draw_controll(void)
+{
+    const int x = 20;
+    const int y = 20;
+    const int fs = 20;
+    const int lh = fs + 6;
+
+    int i = 0;
+
+    DrawText("Controls", x, y + lh*i++, fs + 6, RAYWHITE);
+    DrawText("Left Click / Enter  - place query point", x, y + lh*i++, fs, GRAY);
+    DrawText("K                  - run KNN (animated)",   x, y + lh*i++, fs, GRAY);
+    DrawText("T                  - toggle 2D/3D",         x, y + lh*i++, fs, GRAY);
+    DrawText("R                  - reset query points",   x, y + lh*i++, fs, GRAY);
+    DrawText("P                  - change K (+1)",        x, y + lh*i++, fs, GRAY);
+    DrawText("Shift + P           - change K (-1)",       x, y + lh*i++, fs, GRAY);
+
+    DrawText("2D: Mouse Wheel     - zoom",                x, y + lh*i++, fs, GRAY);
+    DrawText("3D: Free camera     - WASD/Mouse (raylib)", x, y + lh*i++, fs, GRAY);
+}
+
 Dataset dataset = {0};
 Dataset training_set = {0};
 Camera camera = { 0 };
 BoundingBox ground = { (Vector3){ -100, 0, -100 }, (Vector3){100, 0, 100} };
+int k = 5;
+
+void draw_current_k(void)
+{
+    DrawText(TextFormat("K = %d", k), 20, HEIGHT - 40, 28, RAYWHITE);
+}
 
 void update_frame(void){
         float dt = GetFrameTime(); 
@@ -450,11 +467,13 @@ void update_frame(void){
         if (IsKeyPressed(KEY_T))
             toggle_view_anim(&training_set, &camera, &view_mode);
         if (IsKeyPressed(KEY_K))
-            knn_anim(5, view_mode, &dataset, &training_set);
+            knn_anim(k, view_mode, &dataset, &training_set);
         if (IsKeyPressed(KEY_R))
             reset_points(&dataset);
-        if (IsKeyPressed(KEY_P))
-            generate_points(&dataset);
+        if (IsKeyPressed(KEY_P)){
+            float delta = IsKeyPressed(KEY_LEFT_SHIFT) ? -1 : 1;
+            k =  k + delta < 0 ? 1 : k + delta;
+        }
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) || IsKeyPressed(KEY_ENTER)){
             Ray ray = GetMouseRay(GetMousePosition(), camera);
             RayCollision hit = GetRayCollisionBox(ray, ground);
@@ -488,10 +507,13 @@ void update_frame(void){
                 draw_dataset(&dataset, dt, false);
             EndMode3D();
                 draw_axis_labels(&camera, view_mode);
-                DrawText("SPACE - regenerate points", 20, 20, 20, GRAY);
+                draw_controll();
+                draw_current_k();
                 draw_classes();
         EndDrawing();
 }
+
+
 int main()
 {
     srand(time(NULL));
