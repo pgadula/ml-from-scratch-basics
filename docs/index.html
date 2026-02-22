@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ML Visualizations — Iris Dataset</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #06080d;
+    --surface: #0d1117;
+    --border: #1a2030;
+    --text: #c9d1d9;
+    --text-dim: #6e7a8a;
+    --accent-blue: #58c4dd;
+    --accent-red: #ff5555;
+    --accent-green: #82ff64;
+    --accent-yellow: #f0c040;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Space Grotesk', sans-serif;
+    line-height: 1.7;
+    overflow-x: hidden;
+  }
+
+  .grain {
+    position: fixed;
+    top: 0; left: 0; width: 100%; height: 100%;
+    pointer-events: none;
+    opacity: 0.03;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    z-index: 9999;
+  }
+
+  header {
+    padding: 4rem 2rem 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+
+  header h1 {
+    font-size: 2.8rem;
+    font-weight: 700;
+    letter-spacing: -1px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-green));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    margin-bottom: 0.5rem;
+  }
+
+  header .subtitle {
+    color: var(--text-dim);
+    font-size: 1.1rem;
+  }
+
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 0 2rem;
+  }
+
+  section {
+    margin: 3rem 0;
+    padding: 2rem 0;
+    border-top: 1px solid var(--border);
+  }
+
+  section:first-of-type {
+    border-top: none;
+  }
+
+  h2 {
+    font-size: 1.8rem;
+    font-weight: 700;
+    margin-bottom: 1rem;
+    letter-spacing: -0.5px;
+  }
+
+  h2 .tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 400;
+    background: var(--border);
+    color: var(--text-dim);
+    padding: 0.2rem 0.6rem;
+    border-radius: 4px;
+    vertical-align: middle;
+    margin-left: 0.5rem;
+  }
+
+  p {
+    margin-bottom: 1rem;
+    color: var(--text);
+  }
+
+  .highlight { color: var(--accent-blue); font-weight: 600; }
+  .highlight-red { color: var(--accent-red); }
+  .highlight-green { color: var(--accent-green); }
+  .highlight-yellow { color: var(--accent-yellow); }
+
+  .features {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+
+  .feature-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+  }
+
+  .feature-card .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 0.3rem;
+  }
+
+  .feature-card .value {
+    font-size: 1rem;
+    font-weight: 600;
+  }
+
+  .species {
+    display: flex;
+    gap: 2rem;
+    margin: 1.5rem 0;
+  }
+
+  .species-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+
+  .dot-blue { background: var(--accent-blue); }
+  .dot-red { background: var(--accent-red); }
+  .dot-green { background: var(--accent-green); }
+
+  .demo-wrapper {
+    position: relative;
+    margin: 1.5rem 0;
+  }
+
+  .demo-frame {
+    width: 100%;
+    height: 600px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #000;
+    display: block;
+  }
+
+  .fullscreen-btn {
+    position: absolute;
+    top: 0.6rem;
+    right: 0.6rem;
+    background: rgba(13, 17, 23, 0.85);
+    border: 1px solid var(--border);
+    color: var(--accent-blue);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.4rem 0.7rem;
+    border-radius: 6px;
+    cursor: pointer;
+    z-index: 10;
+    transition: background 0.2s, color 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .fullscreen-btn:hover {
+    background: var(--accent-blue);
+    color: var(--bg);
+  }
+
+  .fullscreen-btn svg {
+    width: 14px;
+    height: 14px;
+    fill: currentColor;
+  }
+
+  .demo-wrapper:fullscreen,
+  .demo-wrapper:-webkit-full-screen {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .demo-wrapper:fullscreen .demo-frame,
+  .demo-wrapper:-webkit-full-screen .demo-frame {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+  }
+
+  .demo-wrapper:fullscreen .fullscreen-btn,
+  .demo-wrapper:-webkit-full-screen .fullscreen-btn {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+  }
+
+  .controls-hint {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--text-dim);
+    margin-bottom: 1rem;
+    padding: 0.8rem 1rem;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+  }
+
+  .controls-hint kbd {
+    background: var(--border);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+  }
+
+  .formula {
+    font-family: 'JetBrains Mono', monospace;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    color: var(--accent-yellow);
+    overflow-x: auto;
+    white-space: pre;
+  }
+
+  .method-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+
+  .method-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.2rem;
+  }
+
+  .method-card h3 {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.9rem;
+    color: var(--accent-blue);
+    margin-bottom: 0.5rem;
+  }
+
+  .method-card p {
+    font-size: 0.9rem;
+    color: var(--text-dim);
+    margin-bottom: 0;
+  }
+
+  .example-box {
+    background: var(--surface);
+    border-left: 3px solid var(--accent-blue);
+    border-radius: 0 8px 8px 0;
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+  }
+
+  .example-box .example-title {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+    color: var(--accent-blue);
+    margin-bottom: 0.8rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  .example-box p {
+    margin-bottom: 0.6rem;
+    font-size: 0.95rem;
+  }
+
+  .example-box p:last-child {
+    margin-bottom: 0;
+  }
+
+  .step-list {
+    margin: 1rem 0;
+    padding-left: 0;
+    list-style: none;
+    counter-reset: steps;
+  }
+
+  .step-list li {
+    counter-increment: steps;
+    padding: 0.5rem 0 0.5rem 2.5rem;
+    position: relative;
+    font-size: 0.95rem;
+  }
+
+  .step-list li::before {
+    content: counter(steps);
+    position: absolute;
+    left: 0;
+    top: 0.5rem;
+    width: 1.8rem;
+    height: 1.8rem;
+    background: var(--border);
+    color: var(--accent-blue);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.75rem;
+    font-weight: 700;
+  }
+
+  footer {
+    text-align: center;
+    padding: 3rem 2rem;
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    border-top: 1px solid var(--border);
+    margin-top: 2rem;
+  }
+
+  @media (max-width: 640px) {
+    header h1 { font-size: 2rem; }
+    .features, .method-grid { grid-template-columns: 1fr; }
+    .species { flex-direction: column; gap: 0.5rem; }
+    .demo-frame { height: 400px; }
+  }
+</style>
+</head>
+<body>
+<div class="grain"></div>
+
+<header>
+  <h1>Machine Learning Visualizations</h1>
+  <p class="subtitle">Interactive explorations of classification algorithms on the Iris dataset</p>
+</header>
+
+<div class="container">
+
+  <!-- IRIS DATASET -->
+  <section>
+    <h2>The Iris Dataset <span class="tag">dataset</span></h2>
+    <p>
+      The <span class="highlight">Iris dataset</span> is one of the most famous datasets in machine learning.
+      It was introduced by Ronald Fisher in 1936. It contains 150 samples of iris flowers.
+      Each sample has 4 measurements, and belongs to one of 3 species.
+    </p>
+
+    <div class="features">
+      <div class="feature-card">
+        <div class="label">Feature 1</div>
+        <div class="value">Sepal Length</div>
+      </div>
+      <div class="feature-card">
+        <div class="label">Feature 2</div>
+        <div class="value">Sepal Width</div>
+      </div>
+      <div class="feature-card">
+        <div class="label">Feature 3</div>
+        <div class="value">Petal Length</div>
+      </div>
+      <div class="feature-card">
+        <div class="label">Feature 4</div>
+        <div class="value">Petal Width</div>
+      </div>
+    </div>
+
+    <p>Each flower belongs to one of three species:</p>
+    <div class="species">
+      <div class="species-item"><span class="dot dot-blue"></span> Setosa</div>
+      <div class="species-item"><span class="dot dot-red"></span> Virginica</div>
+      <div class="species-item"><span class="dot dot-green"></span> Versicolor</div>
+    </div>
+
+    <p>
+      The goal is simple: given the 4 measurements of a new flower, predict which species it belongs to.
+      This is a <span class="highlight">classification problem</span> — we want to assign a label to new, unseen data
+      based on examples we already know. Below you can explore three different approaches to this problem.
+    </p>
+  </section>
+
+  <!-- KNN -->
+  <section>
+    <h2>K-Nearest Neighbors <span class="tag">knn</span></h2>
+    <p>
+      KNN is the simplest classification method. It does not learn any model and has no training step.
+      It just remembers all the training data. When a new point needs to be classified, it follows a simple rule:
+    </p>
+
+    <ol class="step-list">
+      <li>Measure the distance from the new point to <span class="highlight">every point</span> in the training set.</li>
+      <li>Pick the <span class="highlight-yellow">K</span> closest points (the neighbors).</li>
+      <li>Look at the labels of those K neighbors and <span class="highlight-green">take a vote</span>. The most common label wins.</li>
+    </ol>
+
+    <p>
+      The parameter <span class="highlight-yellow">K</span> controls how many neighbors we check.
+      With <span class="highlight-yellow">K = 1</span>, we just copy the label of the single nearest point — this is fast but very sensitive to noise.
+      With a larger K (like 5 or 7), we smooth things out by asking more neighbors, but we might miss small local patterns.
+      Choosing the right K is a trade-off.
+    </p>
+
+    <p>
+      To find the "closest" points, we need a <span class="highlight-red">distance metric</span> — a way to measure
+      how far apart two points are. The most common one is Euclidean distance, which is just the straight-line distance:
+    </p>
+
+    <div class="formula">d(a, b) = sqrt( (x₁ - x₂)² + (y₁ - y₂)² + (z₁ - z₂)² )</div>
+
+    <p>
+      In 2D mode we only use 2 features (x and z), so the formula becomes simpler.
+      In 3D mode we use all 3 features, which gives a more accurate picture of how similar two flowers really are.
+      Other distance metrics exist too — like Manhattan distance (sum of absolute differences) or Minkowski distance — but Euclidean is the most intuitive.
+    </p>
+
+    <div class="method-grid">
+      <div class="method-card">
+        <h3>Euclidean 2D</h3>
+        <p>Uses 2 features. Like measuring distance on a flat map. Fast, but loses information from the third feature.</p>
+      </div>
+      <div class="method-card">
+        <h3>Euclidean 3D</h3>
+        <p>Uses all 3 features. Like measuring distance in real space. More accurate, captures the full shape of the data.</p>
+      </div>
+    </div>
+
+    <div class="example-box">
+      <div class="example-title">Example</div>
+      <p>Imagine a new flower with petal width = 1.5 and petal length = 4.0. We set K = 3.</p>
+      <p>The 3 closest training points are: <span class="highlight-red">Virginica</span>, <span class="highlight-green">Versicolor</span>, <span class="highlight-green">Versicolor</span>.</p>
+      <p>Vote: Versicolor wins 2 to 1. We classify the new flower as <span class="highlight-green">Versicolor</span>.</p>
+    </div>
+
+    <div class="controls-hint">
+      <kbd>T</kbd> toggle 2D / 3D view &nbsp;
+      <kbd>Click</kbd> add a point &nbsp;
+      <kbd>K</kbd> run KNN &nbsp;
+      <kbd>R</kbd> reset points
+    </div>
+
+    <div class="demo-wrapper">
+      <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
+      <iframe class="demo-frame" data-src="knn.html"></iframe>
+    </div>
+  </section>
+
+  <!-- SVM -->
+  <section>
+    <h2>Support Vector Machine <span class="tag">svm</span></h2>
+    <p>
+      SVM takes a completely different approach. Instead of memorizing data like KNN, it
+      <span class="highlight">learns a boundary</span> during training. This boundary — called the
+      <span class="highlight">decision boundary</span> — is a line (in 2D) or a plane (in 3D) that separates the classes.
+    </p>
+
+    <p>
+      But SVM does not just find any boundary. It finds the <span class="highlight-green">best</span> one.
+      The key idea is <span class="highlight-yellow">margin maximization</span>:
+      SVM looks for the boundary that has the <span class="highlight-green">largest possible gap</span> (margin)
+      between itself and the nearest points from each class.
+    </p>
+
+    <p>
+      Think of it like this: if you draw a line between two groups, you want that line to be
+      as far away from both groups as possible. A wider margin means the model is more confident
+      and will work better on new, unseen data.
+    </p>
+
+    <p>
+      The training points that sit exactly on the edge of the margin are called
+      <span class="highlight-red">support vectors</span>. They are the only points that matter — if you remove
+      any other training point, the boundary stays exactly the same. Only the support vectors define it.
+    </p>
+
+    <div class="example-box">
+      <div class="example-title">The Kernel Trick</div>
+      <p>
+        What if the data cannot be separated by a straight line? Imagine two classes arranged in circles —
+        one inside the other. No line can separate them.
+      </p>
+      <p>
+        The <span class="highlight-yellow">kernel trick</span> solves this. It maps the data into a
+        <span class="highlight">higher dimension</span> where a straight boundary <em>can</em> separate the classes.
+        For example, 2D points that form circles can be projected into 3D, where a flat plane can cut between them.
+      </p>
+      <p>
+        The clever part: SVM does not actually compute the higher-dimensional coordinates.
+        It uses a <span class="highlight">kernel function</span> that gives the same result as if it did, but much faster.
+        Common kernels are: <span class="highlight">linear</span> (no transformation),
+        <span class="highlight-green">RBF</span> (radial basis function — good for circular patterns),
+        and <span class="highlight-yellow">polynomial</span>.
+      </p>
+    </div>
+
+    <div class="controls-hint">
+      <kbd>Click</kbd> add points &nbsp;
+      <kbd>T</kbd> toggle view
+    </div>
+
+    <div class="demo-wrapper">
+      <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
+      <iframe class="demo-frame" data-src="svm.html"></iframe>
+    </div>
+  </section>
+
+  <!-- PERCEPTRON -->
+  <section>
+    <h2>Perceptron <span class="tag">perceptron</span></h2>
+    <p>
+      The perceptron is the simplest <span class="highlight">neural network</span> — a single neuron.
+      It takes one or more inputs, multiplies each by a <span class="highlight-yellow">weight</span>,
+      adds a <span class="highlight-yellow">bias</span>, and checks if the result is above or below zero.
+    </p>
+
+    <div class="formula">output = sign( w₁·x₁ + w₂·x₂ + ... + wₙ·xₙ + bias )</div>
+
+    <p>
+      If the result is positive, the perceptron outputs <span class="highlight-green">class 1</span>.
+      If negative, it outputs <span class="highlight-red">class 0</span>.
+      The weights and bias start as random numbers. The perceptron then learns by looking at training examples
+      one by one and correcting its mistakes.
+    </p>
+
+    <div class="example-box">
+      <div class="example-title">Simple example — 1 input</div>
+      <p>
+        Say we want to classify if a petal is "big" (≥ 2.5 cm) or "small" (&lt; 2.5 cm).
+        We have one input: <span class="highlight">x = petal length</span>.
+        We start with random values: <span class="highlight-yellow">weight = 0.5</span>,
+        <span class="highlight-yellow">bias = -1.0</span>,
+        and <span class="highlight-yellow">learning rate = 0.1</span>.
+      </p>
+      <p>
+        Training point: x = 3.0, label = 1 (big).<br>
+        Compute: 0.5 × 3.0 + (-1.0) = <span class="highlight">0.5</span> → positive → predict 1. Correct! No update needed.
+      </p>
+      <p>
+        Training point: x = 1.0, label = 0 (small).<br>
+        Compute: 0.5 × 1.0 + (-1.0) = <span class="highlight">-0.5</span> → negative → predict 0. Correct! No update needed.
+      </p>
+      <p>
+        Training point: x = 2.0, label = 0 (small).<br>
+        Compute: 0.5 × 2.0 + (-1.0) = <span class="highlight">0.0</span> → zero → predict 1. <span class="highlight-red">Wrong!</span> Time to update the weights.
+      </p>
+    </div>
+
+    <p>
+      When the perceptron makes a mistake, it updates its weights using this rule:
+    </p>
+
+    <div class="formula">error  = expected - predicted
+
+weight = weight + learning_rate × error × input
+bias   = bias   + learning_rate × error</div>
+
+    <p>
+      The <span class="highlight-yellow">learning rate</span> is a small number (like 0.01 or 0.1) that controls
+      how big each correction is. Too large and the model jumps around and never settles.
+      Too small and it learns very slowly.
+    </p>
+
+    <div class="example-box">
+      <div class="example-title">Continuing the example — weight update</div>
+      <p>
+        We predicted 1 but expected 0, so: error = 0 - 1 = <span class="highlight-red">-1</span>
+      </p>
+      <p>
+        Update weight: 0.5 + 0.1 × (-1) × 2.0 = <span class="highlight-yellow">0.3</span><br>
+        Update bias: -1.0 + 0.1 × (-1) = <span class="highlight-yellow">-1.1</span>
+      </p>
+      <p>
+        Now check again: 0.3 × 2.0 + (-1.1) = <span class="highlight">-0.5</span> → negative → predict 0. Correct!
+      </p>
+      <p>
+        The perceptron repeats this process for many <span class="highlight-green">epochs</span>
+        (full passes through all training data) until it makes no more mistakes — or until a set limit is reached.
+      </p>
+    </div>
+
+    <p>
+      A single perceptron can only learn <span class="highlight-red">linearly separable</span> patterns —
+      it draws a straight line (or plane) to separate classes. If the data cannot be split by a straight line,
+      the perceptron will keep making mistakes and never converge. This limitation led to the invention of
+      multi-layer networks — the foundation of modern deep learning.
+    </p>
+
+    <div class="controls-hint">
+      <kbd>Click</kbd> add points &nbsp;
+      <kbd>T</kbd> toggle view
+    </div>
+
+    <div class="demo-wrapper">
+      <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
+      <iframe class="demo-frame" data-src="perceptron.html"></iframe>
+    </div>
+  </section>
+
+</div>
+
+<footer>
+  Machine Learning Visualizations — built with raylib + WebAssembly
+</footer>
+
+<script>
+function toggleFS(btn) {
+  const wrapper = btn.parentElement;
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    wrapper.requestFullscreen().catch(() => {});
+  }
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const iframe = entry.target;
+      iframe.src = iframe.dataset.src;
+      observer.unobserve(iframe);
+    }
+  });
+}, { rootMargin: '200px' });
+
+document.querySelectorAll('iframe[data-src]').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>
