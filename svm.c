@@ -30,7 +30,7 @@
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
 TweenEngine te;
-float lr = 0.0001;
+float lr = 0.01;
 bool is_training = false;
 float delta = 0.01;
 
@@ -40,8 +40,6 @@ typedef struct{
    float w2;  
 } SVM;
 
-float lr;
-bool is_training;
 SVM svm_visual = {0};
 
 typedef enum {
@@ -149,7 +147,6 @@ void generate_points(Dataset *dataset)
 
 void draw_axes(VIEW_MODE view_mode) {
     float len = 6.0f;
-    float label_offset = 0.3f;
     
     DrawLine3D(
         (Vector3){-len, 0, 0}, 
@@ -287,16 +284,6 @@ void draw_axis_labels(const Camera *camera, VIEW_MODE view_mode) {
     DrawText("Z petal length", (int)z_pos.x, (int)z_pos.y, 24, COLOR_BLUE);
 }
 
-typedef struct {
-    Camera camera;
-
-    //animation props
-    Vector3 desire_target;
-    Vector3 desire_pos;
-    float desire_fovy;
-} AnimCamera;
-
-
 void cam_look_at(Camera *cam, Vector3 target){
     tween_vec3(&te, &cam->target, target, 1); 
 }
@@ -331,38 +318,33 @@ void toggle_view_anim(Dataset *ds, Camera *camera, VIEW_MODE *view_mode) {
 }
 
 void train(Dataset *dataset, SVM *svm){
-    float C = 2;
-    float w1, w2, b;
-    w1 = svm->w1;
-    w2 = svm->w2;
-    b = svm->b;
+    float w1 = svm->w1;
+    float w2 = svm->w2;
+    float b  = svm->b;
 
-    int epochs = 1;
-    
-    for(int e = 0; e < epochs; e++){
-        for(int i = 0; i < dataset->count; i++){
-            Sample s = dataset->items[i];
-            float x1 = s.x;
-            float x2 = s.z;
-            float yi = s.class;
+    for(int i = 0; i < dataset->count; i++){
+        Sample s = dataset->items[i];
+        float x1 = s.x;
+        float x2 = s.z;
+        float yi = s.class;
 
-            float margin = yi*(w1*x1 + w2*x2 + b);
+        float margin = yi * (w1 * x1 + w2 * x2 + b);
 
-            if (margin >= 1){
-                w1 -= lr * w1;
-                w2 -= lr * w2;
-            }
-            else{
-                w1 -= lr * (w1 - C * yi * x1);
-                w2 -= lr * (w2 - C * yi * x2);
-                b  -= lr * (-C * yi);
-            }
+        if (margin >= 1){
+            // correctly classified with enough margin — just shrink weights
+            w1 -= lr * w1;
+            w2 -= lr * w2;
+        } else {
+            // misclassified or inside margin — push boundary
+            w1 -= lr * (w1 - yi * x1);
+            w2 -= lr * (w2 - yi * x2);
+            b  -= lr * (-yi);
         }
     }
 
     svm->w1 = w1;
     svm->w2 = w2;
-    svm->b = b;
+    svm->b  = b;
 }
 
 void draw_svm(const SVM *svm, VIEW_MODE view_mode) {
@@ -479,17 +461,15 @@ float compute_accuracy(const Dataset *ds, const SVM *svm) {
 }
 
 float compute_loss(const Dataset *ds, const SVM *svm) {
-    float C = 1.0f;
-    float loss = 0.5f * (svm->w1 * svm->w1 + svm->w2 * svm->w2); // regularization
+    float loss = 0.5f * (svm->w1 * svm->w1 + svm->w2 * svm->w2);
     for (int i = 0; i < ds->count; i++) {
         Sample s = ds->items[i];
         float margin = s.class * (svm->w1 * s.x + svm->w2 * s.z + svm->b);
         float hinge = 1.0f - margin;
-        if (hinge > 0) loss += C * hinge;
+        if (hinge > 0) loss += hinge;
     }
     return loss / ds->count;
 }
-
 
 
 Dataset dataset = {0};
@@ -528,8 +508,6 @@ void update_frame(){
         float loss = compute_loss(&training_set, &svm);
         float acc = compute_accuracy(&training_set, &svm);
 
-        DrawText(TextFormat("Loss: %.4f | Accuracy: %.1f%%", loss, acc * 100.0f),
-    WIDTH - 400, HEIGHT - 55, 20, GRAY);
         float smooth = 8.0f * dt;
         svm_visual.w1 = lerpf(svm_visual.w1, svm.w1, smooth);
         svm_visual.w2 = lerpf(svm_visual.w2, svm.w2, smooth);
@@ -541,15 +519,15 @@ void update_frame(){
 
                 tween_update(&te, dt);
                 if(view_mode == VIEW_2D)
-                    DrawGrid(10, 1);        // Draw a grid
+                    DrawGrid(10, 1);
                 draw_axes(view_mode);
                 draw_dataset(&training_set, dt, true);
                 draw_dataset(&dataset, dt, false);
                 draw_svm(&svm_visual, view_mode);
             EndMode3D();
-            // po EndMode3D:
-            DrawText(TextFormat("LR: %.5f | W1: %.3f W2: %.3f B: %.3f | Loss: %.4f",
-                        lr, svm.w1, svm.w2, svm.b, loss), 20, HEIGHT - 30, 20, GRAY);
+
+            DrawText(TextFormat("LR: %.5f | W1: %.3f W2: %.3f B: %.3f | Loss: %.4f | Acc: %.1f%%",
+                        lr, svm.w1, svm.w2, svm.b, loss, acc * 100.0f), 20, HEIGHT - 30, 20, GRAY);
 
             DrawText(is_training ? "TRAINING..." : "PAUSED [Q to train]", 20, HEIGHT - 55, 20, 
                     is_training ? COLOR_GREEN : COLOR_RED);
@@ -567,9 +545,7 @@ int main()
 
     da_reserve(&te, 1024);
 
-
     prepare_training_dataset(&training_set);
-
 
     camera.position = (Vector3){ -10.0f, 0.0f, 0.5f };
     camera.target = (Vector3){ 0.0f, -1.0f, 1.0f };
@@ -594,4 +570,3 @@ int main()
     CloseWindow();
     return 0;
 }
-

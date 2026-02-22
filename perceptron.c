@@ -140,23 +140,6 @@ typedef struct {
     float w0, w1, b;
 } WeightSnapshot;
 
-#define WEIGHT_HISTORY_MAX 200
-WeightSnapshot weight_history[WEIGHT_HISTORY_MAX] = {0};
-int weight_history_count = 0;
-
-void push_weights(const Perceptron *p) {
-    WeightSnapshot s = {p->w[0], p->w[1], p->b};
-    if (weight_history_count < WEIGHT_HISTORY_MAX) {
-        weight_history[weight_history_count++] = s;
-    } else {
-        memmove(weight_history, weight_history + 1, (WEIGHT_HISTORY_MAX - 1) * sizeof(WeightSnapshot));
-        weight_history[WEIGHT_HISTORY_MAX - 1] = s;
-    }
-}
-
-void reset_weight_history(void) {
-    weight_history_count = 0;
-}
 
 // ── Perceptron animation state ──────────────────────────────
 
@@ -376,21 +359,6 @@ void draw_perceptron_structure(const Perceptron *p, float *inputs,
         Vector2 cur = {lerpf_local(from.x, to.x, perc_anim_t),
                        lerpf_local(from.y, to.y, perc_anim_t)};
         DrawLineEx(from, cur, thickness, c);
-
-        // Continuous pulsing particles along connection
-        int num_particles = 3;
-        float conn_len = sqrtf((to.x - from.x) * (to.x - from.x) + (to.y - from.y) * (to.y - from.y));
-        for (int pp = 0; pp < num_particles; pp++) {
-            float phase = fmodf(conn_pulse_phase + (float)pp / num_particles + i * 0.3f, 1.0f);
-            Vector2 dot = {lerpf_local(from.x, to.x, phase),
-                           lerpf_local(from.y, to.y, phase)};
-            float dot_alpha = sinf(phase * PI) * abs_w * 0.8f;
-            if (dot_alpha > 1.0f) dot_alpha = 1.0f;
-            Color dc = c;
-            dc.a = (unsigned char)(dot_alpha * 180);
-            float dot_r = 3.0f + abs_w * 2.0f;
-            DrawCircle(dot.x, dot.y, dot_r, dc);
-        }
 
         if (signal_t[i] > 0.01f && signal_t[i] < 0.99f) {
             float st = signal_t[i];
@@ -696,7 +664,6 @@ void switch_dataset(int idx) {
     current_dataset = idx;
     reset_perceptron(&perceptron);
     reset_error_history();
-    reset_weight_history();
     total_epochs = 0;
     current_error = 1.0f;
     is_training_run = false;
@@ -717,7 +684,6 @@ void update_frame(void) {
     if (IsKeyPressed(KEY_R)) {
         reset_perceptron(&perceptron);
         reset_error_history();
-        reset_weight_history();
         total_epochs = 0;
         current_error = 1.0f;
     }
@@ -741,11 +707,6 @@ void update_frame(void) {
         push_error(current_error);
         trigger_signal_anim();
     }
-
-    // ── Layout: 2 columns ─────────────────────────────────
-    // Left: big perceptron structure (half screen)
-    // Right top: heatmap, right mid: error chart, right bottom: table + controls
-
     int margin = 16;
     int top_y = margin + 36;
     int content_h = HEIGHT - top_y - margin;

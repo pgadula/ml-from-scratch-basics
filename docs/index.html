@@ -359,7 +359,6 @@
 
 <header>
   <h1>Machine Learning Visualizations</h1>
-  <p class="subtitle">Interactive explorations of classification algorithms on the Iris dataset</p>
 </header>
 
 <div class="container">
@@ -434,23 +433,6 @@
 
     <div class="formula">d(a, b) = sqrt( (x₁ - x₂)² + (y₁ - y₂)² + (z₁ - z₂)² )</div>
 
-    <p>
-      In 2D mode we only use 2 features (x and z), so the formula becomes simpler.
-      In 3D mode we use all 3 features, which gives a more accurate picture of how similar two flowers really are.
-      Other distance metrics exist too — like Manhattan distance (sum of absolute differences) or Minkowski distance — but Euclidean is the most intuitive.
-    </p>
-
-    <div class="method-grid">
-      <div class="method-card">
-        <h3>Euclidean 2D</h3>
-        <p>Uses 2 features. Like measuring distance on a flat map. Fast, but loses information from the third feature.</p>
-      </div>
-      <div class="method-card">
-        <h3>Euclidean 3D</h3>
-        <p>Uses all 3 features. Like measuring distance in real space. More accurate, captures the full shape of the data.</p>
-      </div>
-    </div>
-
     <div class="example-box">
       <div class="example-title">Example</div>
       <p>Imagine a new flower with petal width = 1.5 and petal length = 4.0. We set K = 3.</p>
@@ -471,7 +453,6 @@
     </div>
   </section>
 
-  <!-- SVM -->
   <section>
     <h2>Support Vector Machine <span class="tag">svm</span></h2>
     <p>
@@ -513,9 +494,6 @@
       <p>
         The clever part: SVM does not actually compute the higher-dimensional coordinates.
         It uses a <span class="highlight">kernel function</span> that gives the same result as if it did, but much faster.
-        Common kernels are: <span class="highlight">linear</span> (no transformation),
-        <span class="highlight-green">RBF</span> (radial basis function — good for circular patterns),
-        and <span class="highlight-yellow">polynomial</span>.
       </p>
     </div>
 
@@ -530,7 +508,6 @@
     </div>
   </section>
 
-  <!-- PERCEPTRON -->
   <section>
     <h2>Perceptron <span class="tag">perceptron</span></h2>
     <p>
@@ -610,11 +587,6 @@ bias   = bias   + learning_rate × error</div>
       the perceptron will keep making mistakes and never converge. This limitation led to the invention of
       multi-layer networks — the foundation of modern deep learning.
     </p>
-
-    <div class="controls-hint">
-      <kbd>Click</kbd> add points &nbsp;
-      <kbd>T</kbd> toggle view
-    </div>
 
     <div class="demo-wrapper">
       <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
