@@ -153,17 +153,26 @@
   .dot-red { background: var(--accent-red); }
   .dot-green { background: var(--accent-green); }
 
+  /* ── Demo wrapper & iframe ── */
+
   .demo-wrapper {
     position: relative;
     margin: 1.5rem 0;
+    width: 100%;
+    aspect-ratio: 1920 / 1024;
+    background: #000;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
   }
 
   .demo-frame {
+    position: absolute;
+    top: 0;
+    left: 0;
     width: 100%;
-    height: 600px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: #000;
+    height: 100%;
+    border: none;
     display: block;
   }
 
@@ -200,17 +209,17 @@
   .demo-wrapper:fullscreen,
   .demo-wrapper:-webkit-full-screen {
     background: #000;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    border: none;
+    border-radius: 0;
+    aspect-ratio: auto;
+    width: 100vw;
+    height: 100vh;
   }
 
   .demo-wrapper:fullscreen .demo-frame,
   .demo-wrapper:-webkit-full-screen .demo-frame {
     width: 100vw;
     height: 100vh;
-    border: none;
-    border-radius: 0;
   }
 
   .demo-wrapper:fullscreen .fullscreen-btn,
@@ -219,6 +228,8 @@
     top: 1rem;
     right: 1rem;
   }
+
+  /* ── Other components ── */
 
   .controls-hint {
     font-family: 'JetBrains Mono', monospace;
@@ -350,7 +361,6 @@
     header h1 { font-size: 2rem; }
     .features, .method-grid { grid-template-columns: 1fr; }
     .species { flex-direction: column; gap: 0.5rem; }
-    .demo-frame { height: 400px; }
   }
 </style>
 </head>
@@ -480,6 +490,16 @@
       any other training point, the boundary stays exactly the same. Only the support vectors define it.
     </p>
 
+    <div class="controls-hint">
+      <kbd>Click</kbd> add points &nbsp;
+      <kbd>T</kbd> toggle view
+    </div>
+
+    <div class="demo-wrapper">
+      <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
+      <iframe class="demo-frame" data-src="svm.html"></iframe>
+    </div>
+
     <div class="example-box">
       <div class="example-title">The Kernel Trick</div>
       <p>
@@ -498,13 +518,15 @@
     </div>
 
     <div class="controls-hint">
-      <kbd>Click</kbd> add points &nbsp;
-      <kbd>T</kbd> toggle view
+      <kbd>K</kbd> kernel trick (lift / flatten) &nbsp;
+      <kbd>S</kbd> separating plane &nbsp;
+      <kbd>T</kbd> toggle view &nbsp;
+      <kbd>R</kbd> reset
     </div>
 
     <div class="demo-wrapper">
       <button class="fullscreen-btn" onclick="toggleFS(this)"><svg viewBox="0 0 24 24"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg>Fullscreen</button>
-      <iframe class="demo-frame" data-src="svm.html"></iframe>
+      <iframe class="demo-frame" data-src="nonld.html"></iframe>
     </div>
   </section>
 
@@ -603,10 +625,27 @@ bias   = bias   + learning_rate × error</div>
 <script>
 function toggleFS(btn) {
   const wrapper = btn.parentElement;
+  const iframe = wrapper.querySelector('.demo-frame');
+
+  function reloadIframe() {
+    const src = iframe.dataset.src || iframe.src;
+    iframe.src = '';
+    requestAnimationFrame(() => { iframe.src = src; });
+    document.removeEventListener('fullscreenchange', onFSChange);
+  }
+
+  function onFSChange() {
+    reloadIframe();
+  }
+
+  document.addEventListener('fullscreenchange', onFSChange);
+
   if (document.fullscreenElement) {
     document.exitFullscreen();
   } else {
-    wrapper.requestFullscreen().catch(() => {});
+    wrapper.requestFullscreen().catch(() => {
+      document.removeEventListener('fullscreenchange', onFSChange);
+    });
   }
 }
 

@@ -10,8 +10,7 @@ LDFLAGS := $(RAYLIB_LIB) \
            -lm -ldl -lpthread \
            -lGL -lX11 -lXrandr -lXi -lXcursor -lXinerama
 
-# Programy które chcesz budować
-PROGS := knn perceptron svm
+PROGS := knn perceptron svm nonld
 PROGS_DEBUG := knn_debug perceptron_debug svm_debug
 
 .PHONY: all debug clean
@@ -20,6 +19,10 @@ all: $(PROGS)
 debug: $(PROGS_DEBUG)
 
 # -------- Release builds --------
+
+nonld: nonld.o
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 knn: knn.o
 	$(CC) -o $@ $^ $(LDFLAGS)
 
@@ -62,13 +65,18 @@ clean:
 # -------- Web (Emscripten) --------
 RAYLIB_WEB_LIB := third_party/raylib/lib/libraylib.web.a
 EMSDK_FLAGS := -Os -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 -DPLATFORM_WEB --shell-file $(CURDIR)/shell.html
-WEB_PROGS := knn.html perceptron.html svm.html
+WEB_PROGS := knn.html perceptron.html svm.html nonld.html
 
 .PHONY: web serve
 
 web: $(WEB_PROGS)
 
 # -------- Web builds --------
+
+nonld.html: nonld.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
 knn.html: knn.c
 	@mkdir -p docs
 	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
@@ -88,13 +96,18 @@ serve: web
 RAYLIB_WEB_LIB := third_party/raylib/lib/libraylib.web.a
 EMSDK_FLAGS := -Os -s USE_GLFW=3 -s ASYNCIFY -s TOTAL_MEMORY=67108864 -DPLATFORM_WEB --shell-file $(CURDIR)/shell.html
 
-WEB_PROGS := knn.html perceptron.html svm.html
+WEB_PROGS := knn.html perceptron.html svm.html nonld.c
 
 .PHONY: web serve
 
 web: $(WEB_PROGS)
 	#
 # -------- Web builds --------
+
+nonld.html: nonld.c
+	@mkdir -p docs
+	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)
+
 knn.html: knn.c
 	@mkdir -p docs
 	emcc -o docs/$@ $< -I$(RAYLIB_INC) $(RAYLIB_WEB_LIB) $(EMSDK_FLAGS)

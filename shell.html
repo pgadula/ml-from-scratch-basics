@@ -4,7 +4,21 @@
 <meta charset="utf-8">
 <style>
 * { margin: 0; padding: 0; overflow: hidden; }
-canvas { display: block; width: 100vw; height: 100vh; }
+body {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100vw;
+    height: 100vh;
+}
+canvas {
+    display: block;
+    width: 100vw;
+    height: calc(100vw * 1024 / 1920);
+    max-height: 100vh;
+    max-width: calc(100vh * 1920 / 1024);
+}
 </style>
 </head>
 <body>
