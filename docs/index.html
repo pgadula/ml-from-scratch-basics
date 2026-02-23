@@ -627,15 +627,21 @@ function toggleFS(btn) {
   const wrapper = btn.parentElement;
   const iframe = wrapper.querySelector('.demo-frame');
 
-  function reloadIframe() {
+  function reloadAndFocus() {
     const src = iframe.dataset.src || iframe.src;
     iframe.src = '';
-    requestAnimationFrame(() => { iframe.src = src; });
+    requestAnimationFrame(() => {
+      iframe.src = src;
+      iframe.onload = () => {
+        iframe.focus();
+        iframe.contentWindow.focus();
+      };
+    });
     document.removeEventListener('fullscreenchange', onFSChange);
   }
 
   function onFSChange() {
-    reloadIframe();
+    reloadAndFocus();
   }
 
   document.addEventListener('fullscreenchange', onFSChange);
