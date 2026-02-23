@@ -30,7 +30,7 @@
 #define COLOR_GREEN      (Color){130, 255, 100, 255}
 
 TweenEngine te;
-float lr = 0.01;
+float lr = 0.0001;
 bool is_training = false;
 float delta = 0.01;
 
